@@ -139,7 +139,8 @@ def main():
     insert_application(bootloader)
     insert_signature(bootloader)
     insert_storage(bootloader)
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.hex') as tf:
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.hex') as tf:
+        print(dump_hex_file(bootloader))
         tf.write(dump_hex_file(bootloader))
     cmd = [
             "cc-tool",

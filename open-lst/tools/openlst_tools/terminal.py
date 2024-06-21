@@ -88,7 +88,7 @@ class RadioTerminal(object):
         self._connect_zmq()
         while self.running:
             msgs = dict(self.poller.poll(50))
-            for sock, msg in msgs.iteritems():
+            for sock, msg in msgs.items():
                 if sock == self.rx:
                     msg = self.rx.recv()
                     self.insert_msg("<", self._process_zmq_msg(msg))
@@ -103,13 +103,13 @@ class RadioTerminal(object):
     def _process_zmq_msg(self, msg):
         ''' Deal with the raw data vs translated data '''
         if self.raw:
-            return bytearray(msg)
+            return bytearray(msg, 'utf-8')
         return self.trans.string_from_bytes(msg)
 
     def insert_msg(self, prompt, msg):
         ''' Clear the current line, print some text, then reprint the line '''
-        if type(msg) == str:
-            msg = bytearray(msg)
+        #if type(msg) == str:
+        #    msg = bytearray(msg, 'utf-8')
         if self.raw:
             msg = ' '.join('{:02x}'.format(x) for x in msg)
         self.clear_line()
@@ -146,7 +146,7 @@ class RadioTerminal(object):
 
     def _input_loop(self):
         try:
-            self.user_buffer = raw_input('> ')
+            self.user_buffer = input('> ')
             self._command_preprocessor()
         except (KeyboardInterrupt, EOFError):
             if readline.get_line_buffer() != '':

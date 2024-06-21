@@ -38,7 +38,7 @@ def main():
         help="The unsigned .hex radio application file")
     parser.add_argument(
         'signature_file',
-        type=argparse.FileType('w'),
+        type=argparse.FileType('wb'),
         help="The signature output file")
     args = parser.parse_args()
 
@@ -49,7 +49,7 @@ def main():
     log = logging.getLogger()
     log.setLevel(logging.DEBUG)
     radio_app = parse_hex_file(args.radio_hex_in.read())
-    iv = '\0' * 16
+    iv = bytes('\0' * 16, 'utf-8')
     cipher = AES.new(args.signing_key, AES.MODE_CBC, iv)
     cbc = cipher.encrypt(bytes(
         radio_app[FLASH_APP_START:FLASH_SIGNATURE_START]))

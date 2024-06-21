@@ -106,7 +106,7 @@ def main():
             pass
         time.sleep(1.5)
     # Load pages
-    for page in xrange(FLASH_APP_START, FLASH_APP_END + 1, FLASH_PAGE_SIZE):
+    for page in range(FLASH_APP_START, FLASH_APP_END + 1, FLASH_PAGE_SIZE):
         page_number = page // FLASH_PAGE_SIZE
         page_data = app_section[page:page + FLASH_PAGE_SIZE]
         if all(b == 0xff for b in page_data):
@@ -115,7 +115,7 @@ def main():
         con.send_cmd_resp(
             "lst bootloader_write_page %d %s" % (
                 page_number,
-                hexlify(page_data)),
+                hexlify(page_data).decode('utf-8')),
             reply="lst bootloader_ack %d" % page_number)
     con.send_cmd("lst bootloader_write_page 255")
     # Get telem?

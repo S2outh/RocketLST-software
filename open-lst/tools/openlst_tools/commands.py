@@ -18,15 +18,15 @@ import abc
 import time
 import logging
 from threading import Thread, Lock
-from Queue import Queue, Empty
+from queue import Queue, Empty
 from .translator import Translator
 from .radio_mux import DEFAULT_RX_SOCKET, DEFAULT_TX_SOCKET
 
 SEQNUM_MIN = 16
 SEQNUM_MAX = 64000
 
-ESP_START_BYTE_0 = '\x22'
-ESP_START_BYTE_1 = '\x69'
+ESP_START_BYTE_0 = b'\x22'
+ESP_START_BYTE_1 = b'\x69'
 ESP_HEADER = ESP_START_BYTE_0 + ESP_START_BYTE_1
 
 log = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ class CommandHandler(object):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, hwid):
-        if isinstance(hwid, basestring):
+        if isinstance(hwid, str):
             self.hwid = int(hwid, 16)
         else:
             self.hwid = hwid
@@ -84,8 +84,9 @@ class CommandHandler(object):
         if timeout is not None:
             expires = t + timeout
         msg = self.trans.bytes_from_string(
-            hwid=self.hwid, seqnum=self.seqnum,
-            s=cmd)
+            hwid=self.hwid, seqnum=self.seqnum, s=cmd)
+        #print("CMD", cmd)
+        #print("MSG", msg)
         self.flush()
         self.send_message(msg)
 
@@ -101,22 +102,22 @@ class CommandHandler(object):
 
     def send_cmd_once(self, cmd, timeout):
         self._inc_seqnum()
-        log.debug("Sending (%04X): %s", self.hwid, cmd)
+        log.debug("Sending (%04X): %s" % self.hwid, cmd)
         resp = self._send_cmd_once(cmd, timeout)
         if resp:
-            log.debug("Response: %s", resp)
+            log.debug("Response: %s" % resp)
         else:
             log.debug("No response")
         return resp
 
     def send_cmd(self, cmd, timeout=1.2, retries=None):
         tries = 0
-        log.debug("Sending (%04X): %s", self.hwid, cmd)
+        log.debug("Sending (%04X): %s" % self.hwid, cmd)
         self._inc_seqnum()
         while retries is None or tries <= retries:
             resp = self._send_cmd_once(cmd, timeout=timeout)
             if resp:
-                log.debug("Response: %s", resp)
+                log.debug("Response: %s" % resp)
                 return resp
             else:
                 tries += 1
@@ -168,7 +169,7 @@ class SerialListener(Thread):
         self.serial_lock = Lock()
         self.messages = Queue()
         self.parser = esp_parser()
-        self.parser.next()
+        self.parser.__next__()
 
     def update(self):
         with self.serial_lock:
@@ -199,7 +200,7 @@ class SerialCommandHandler(CommandHandler):
         outbuf = bytearray()
         outbuf += ESP_START_BYTE_0
         outbuf += ESP_START_BYTE_1
-        outbuf += chr(len(msg))
+        outbuf += bytes(chr(len(msg)), 'utf-8')
         outbuf += msg
         self.listener.write(outbuf)
 
@@ -238,7 +239,7 @@ class ZMQCommandHandler(CommandHandler):
 
     def poll_message(self, timeout):
         msgs = dict(self.poller.poll(timeout * 1000))
-        for sock, msg in msgs.iteritems():
+        for sock, msg in msgs.items():
             if sock == self.rx:
                 return self.rx.recv()
         return None

@@ -16,7 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 sudo apt-get update
-sudo apt-get install --assume-yes python-dev python-pip
+sudo apt-get install --assume-yes python3-dev python3-pip
 sudo pip install -e /home/vagrant/project/open-lst/tools
 
 # Install the radio services

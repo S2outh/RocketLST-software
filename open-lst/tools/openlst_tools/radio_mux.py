@@ -24,10 +24,11 @@ import signal
 import zmq
 from binascii import hexlify
 from threading import Thread, Event, Lock
-from Queue import Queue
+from queue import Queue
+import sys
 
-ESP_START_BYTE_0 = '\x22'
-ESP_START_BYTE_1 = '\x69'
+ESP_START_BYTE_0 = b'\x22'
+ESP_START_BYTE_1 = b'\x69'
 
 DEFAULT_RX_SOCKET = 'ipc:///tmp/radiomux_rx'
 DEFAULT_TX_SOCKET = 'ipc:///tmp/radiomux_tx'
@@ -79,10 +80,10 @@ class ZMQPoller(Thread):
         context = zmq.Context()
         self.tx = context.socket(zmq.PULL)
         self.tx.bind(self.tx_socket)
-        log.debug("Transmitting from %s", self.tx_socket)
+        log.debug("Transmitting from %s" % self.tx_socket)
         self.rx = context.socket(zmq.PUB)
         self.rx.bind(self.rx_socket)
-        log.debug("Receiving to %s", self.rx_socket)
+        log.debug("Receiving to %s" % self.rx_socket)
         self.rx_ready.set()
         self.echo = context.socket(zmq.PUB)
         self.echo.bind(self.echo_socket)
@@ -94,18 +95,20 @@ class ZMQPoller(Thread):
                 os.chown(filename, uid, gid)
             if self.mode is not None:
                 os.chmod(filename, self.mode)
-        log.debug("Transmit echo on %s", self.echo_socket)
+        log.debug("Transmit echo on %s" % self.echo_socket)
+        print("Transmit echo on %s" % self.echo_socket)
         poller = zmq.Poller()
         poller.register(self.tx, zmq.POLLIN)
         log.debug("ZMQ setup complete")
+        print("ZMQ setup complete")
         while not self.stop.is_set():
             for socket, event in poller.poll(500):
                 if socket == self.tx and event == zmq.POLLIN:
                     msg_parts = self.tx.recv_multipart()
-                    full_msg = ''.join(msg_parts)
-                    log.debug("Received message of %d parts length %d on %s",
-                              len(msg_parts), len(full_msg), self.tx_socket)
-                    log.debug("> %s", ''.join(hexlify(p) for p in msg_parts))
+                    full_msg = b''.join(msg_parts)
+                    log.debug("Received message of %d parts length %d on %s" %
+                              (len(msg_parts), len(full_msg), self.tx_socket))
+                    log.debug("> %s", ''.join(hexlify(p).decode('utf-8') for p in msg_parts))
                     self.echo.send(full_msg)
                     self.serial_tx.queue.put(full_msg)
 
@@ -114,9 +117,9 @@ class ZMQPoller(Thread):
         self.rx_ready.wait()
         with self.rx_lock:
             self.rx.send_multipart(msg_parts)
-            log.debug("Forwarded message of %d parts length %d to %s",
-                      len(msg_parts), len(full_msg), self.rx_socket)
-            log.debug("> %s", ''.join(hexlify(p) for p in msg_parts))
+            log.debug("Forwarded message of %d parts length %d to %s" % (
+                      len(msg_parts), len(full_msg), self.rx_socket))
+            log.debug("> %s" % ''.join(hexlify(p).decode('utf-8') for p in msg_parts))
 
     def stop_now(self, *args, **kwargs):
         log.debug("Stop signal received")
@@ -137,8 +140,8 @@ class SerialTx(Thread):
         while True:
             msg = self.queue.get()[:250]
             log.debug("Sending serial message %s",
-                      ''.join(hex(ord(b)) for b in msg))
-            header = ESP_START_BYTE_0 + ESP_START_BYTE_1 + chr(len(msg))
+                      ''.join(hex(b) for b in msg))
+            header = ESP_START_BYTE_0 + ESP_START_BYTE_1 + bytes(chr(len(msg)), 'utf-8')
             self.serial_port.write(header + msg)
 
 
@@ -154,7 +157,7 @@ class SerialRx(Thread):
     def read_messages(self):
         while True:
             # wait for ESP sync
-            b = ""
+            b = b''
             log.debug("Waiting for start byte 1")
             while b != ESP_START_BYTE_0:
                 b = self.serial_port.read(1)
@@ -164,7 +167,7 @@ class SerialRx(Thread):
             if b != ESP_START_BYTE_1:
                 continue
             length = ord(self.serial_port.read(1))
-            log.debug("Length is %d", length)
+            log.debug("Length is %d" % length)
             packet = self.serial_port.read(length)
             log.debug("Got message")
             yield packet
@@ -188,7 +191,7 @@ def main():
         rtscts=False,
         parity=serial.PARITY_NONE,
         stopbits=serial.STOPBITS_ONE)
-    print serial_port
+    print(serial_port)
     zmq_poller = ZMQPoller(
         tx_socket=args.tx_socket,
         rx_socket=args.rx_socket,

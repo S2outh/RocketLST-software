@@ -21,25 +21,25 @@ from ast import literal_eval
 from binascii import hexlify, unhexlify
 from struct import pack, unpack
 
-LST = '\x01'
-LST_RELAY = '\x11'
+LST = b'\x01'
+LST_RELAY = b'\x11'
 
-ACK = '\x10'
-NACK = '\xff'
-REBOOT = '\x12'
-GET_CALLSIGN = '\x19'
-SET_CALLSIGN = '\x1a'
-CALLSIGN = '\x1b'
-GET_TELEM = '\x17'
-TELEM = '\x18'
-GET_TIME = '\x13'
-SET_TIME = '\x14'
-BOOTLOADER_PING = '\x00'
-BOOTLOADER_ERASE = '\x0c'
-BOOTLOADER_WRITE_PAGE = '\x02'
-BOOTLOADER_ACK = '\x01'
-BOOTLOADER_NACK = '\x0f'
-ASCII = '\x11'
+ACK = b'\x10'
+NACK = b'\xff'
+REBOOT = b'\x12'
+GET_CALLSIGN = b'\x19'
+SET_CALLSIGN = b'\x1a'
+CALLSIGN = b'\x1b'
+GET_TELEM = b'\x17'
+TELEM = b'\x18'
+GET_TIME = b'\x13'
+SET_TIME = b'\x14'
+BOOTLOADER_PING = b'\x00'
+BOOTLOADER_ERASE = b'\x0c'
+BOOTLOADER_WRITE_PAGE = b'\x02'
+BOOTLOADER_ACK = b'\x01'
+BOOTLOADER_NACK = b'\x0f'
+ASCII = b'\x11'
 AES_KEY_SIZE = 16
 
 
@@ -161,7 +161,7 @@ class HexArgument(Argument):
             raise ValueError("'%s' is too long" % value)
         if self.pad == 'none' and len(v) < self.length:
             raise ValueError("'%s' is too short" % value)
-        padding = (self.length - len(v)) * '\0'
+        padding = ((self.length - len(v)) * '\0').encode('utf-8')
         if self.pad == 'left':
             v = padding + v
         else:
@@ -183,7 +183,7 @@ class StringArgument(Argument):
         return value
 
     def from_bytes(self, bstring):
-        return '"' + bstring + '"', ""
+        return '"' + bstring.decode('utf-8') + '"', ""
 
 
 class EnumArgument(Argument):
@@ -319,7 +319,7 @@ class Translator(object):
 
     # TODO: better parser
     def bytes_from_string(self, hwid, seqnum, s):
-        rv = bytearray(pack('<HH', hwid, seqnum))
+        rv = bytearray(pack('<HH', int(hwid), int(seqnum)))
 
         tokens = s.split()
 
@@ -334,20 +334,22 @@ class Translator(object):
 
         return rv
 
-    def string_from_bytes(self, b):
-        b = str(b)
+    def string_from_bytes(self, b: bytearray):        
         if len(b) < 6:
-            return "too_short " + hexlify(b)
-        if b[4] == LST:
+            return "too_short " + str(hexlify(b))
+        if b[4:5] == LST:
             try:
-                return (
-                    "lst " + CMD_OPCODE_MAP[b[5]].key + " " +
-                    CMD_OPCODE_MAP[b[5]].bytes_to_string(b[6:]))
+                out = "lst "
+                out += CMD_OPCODE_MAP[b[5:6]].key
+                out += " "
+                out += CMD_OPCODE_MAP[b[5:6]].bytes_to_string(b[6:])
+                return out
             except Exception:
                 return "lst unknown " + hexlify(b[5:])
+                #return "lst unknown " + (b).decode('utf-8')
         else:
-            return "unknown_sys " + hexlify(b[4:])
+            return "unknown_sys " + str(hexlify(b[4:]))
 
     def int_from_bytes(self, bytearr):
         # assumes 2 bytes
-        return unpack('<H', str(bytearr))[0]
+        return unpack('<H', bytearr)[0]

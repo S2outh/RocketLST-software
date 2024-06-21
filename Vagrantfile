@@ -16,7 +16,7 @@
 
 Vagrant.configure("2") do |config|
   config.ssh.username = "vagrant"
-  config.vm.box = "ubuntu/xenial64"
+  config.vm.box = "ubuntu/focal64"
   config.vm.provision "shell", path: "open-lst/tools/install_cctool.sh"
   config.vm.provision "shell", path: "open-lst/tools/install_python_tools.sh"
   config.vm.synced_folder ".", "/home/vagrant/project"
@@ -34,5 +34,10 @@ Vagrant.configure("2") do |config|
       "--name", "TTL232R-3V3",
       "--manufacturer", "FTDI",
       "--product", "TTL232R-3V3"]
+    vb.customize ["usbfilter", "add", "0",
+      "--target", :id,
+      "--name", "FT232R USB UART",
+      "--manufacturer", "FTDI",
+      "--product", "FT232R USB UART"]
   end
 end
