@@ -6,3 +6,6 @@
 *.log
 *.sig
 *.keys
+
+.venv
+.direnv
