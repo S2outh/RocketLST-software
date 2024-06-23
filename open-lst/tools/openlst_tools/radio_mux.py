@@ -141,7 +141,8 @@ class SerialTx(Thread):
             msg = self.queue.get()[:250]
             log.debug("Sending serial message %s",
                       ''.join(hex(b) for b in msg))
-            header = ESP_START_BYTE_0 + ESP_START_BYTE_1 + bytes(chr(len(msg)), 'utf-8')
+            #header = ESP_START_BYTE_0 + ESP_START_BYTE_1 + bytes(chr(len(msg)), 'utf-8')
+            header = ESP_START_BYTE_0 + ESP_START_BYTE_1 + bytes([len(msg)]) # Restricted length to 255bytes
             self.serial_port.write(header + msg)
 
 

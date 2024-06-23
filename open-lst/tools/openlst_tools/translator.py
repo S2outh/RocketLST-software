@@ -171,7 +171,7 @@ class HexArgument(Argument):
     def from_bytes(self, bstring):
         if len(bstring) < self.length:
             raise ValueError("not enough bytes")
-        return hexlify(bstring[:self.length]), bstring[self.length:]
+        return hexlify(bstring[:self.length]).decode('utf-8'), bstring[self.length:].decode('utf-8')
 
 
 class StringArgument(Argument):

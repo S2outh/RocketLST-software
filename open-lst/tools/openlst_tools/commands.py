@@ -102,7 +102,7 @@ class CommandHandler(object):
 
     def send_cmd_once(self, cmd, timeout):
         self._inc_seqnum()
-        log.debug("Sending (%04X): %s" % self.hwid, cmd)
+        log.debug("Sending (%04X): %s" % (self.hwid, cmd))
         resp = self._send_cmd_once(cmd, timeout)
         if resp:
             log.debug("Response: %s" % resp)
@@ -112,7 +112,7 @@ class CommandHandler(object):
 
     def send_cmd(self, cmd, timeout=1.2, retries=None):
         tries = 0
-        log.debug("Sending (%04X): %s" % self.hwid, cmd)
+        log.debug("Sending (%04X): %s" % (self.hwid, cmd))
         self._inc_seqnum()
         while retries is None or tries <= retries:
             resp = self._send_cmd_once(cmd, timeout=timeout)
@@ -200,7 +200,8 @@ class SerialCommandHandler(CommandHandler):
         outbuf = bytearray()
         outbuf += ESP_START_BYTE_0
         outbuf += ESP_START_BYTE_1
-        outbuf += bytes(chr(len(msg)), 'utf-8')
+        #outbuf += bytes(chr(len(msg)), 'utf-8')
+        outbuf += bytes([len(msg)]) # Restricted length to 255bytes
         outbuf += msg
         self.listener.write(outbuf)
 
