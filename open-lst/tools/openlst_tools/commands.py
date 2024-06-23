@@ -200,7 +200,6 @@ class SerialCommandHandler(CommandHandler):
         outbuf = bytearray()
         outbuf += ESP_START_BYTE_0
         outbuf += ESP_START_BYTE_1
-        #outbuf += bytes(chr(len(msg)), 'utf-8')
         outbuf += bytes([len(msg)]) # Restricted length to 255bytes
         outbuf += msg
         self.listener.write(outbuf)

@@ -56,7 +56,7 @@ def main():
         help="The AES CBC-MAC signature of this image (8 byte hex)")
     sig_opt.add_argument(
         '--signature-file',
-        type=argparse.FileType('r'),
+        type=argparse.FileType('rb'),
         help="A file with an 8 byte AES CBC-MAC hex signature")
     parser.add_argument(
         'firmware_image',
