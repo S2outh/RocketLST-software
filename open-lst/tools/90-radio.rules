@@ -1,1 +1,1 @@
-ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", MODE="0666", SYMLINK+="lst_uart1", OPTIONS+="last_rule", TAG+="systemd", ENV{SYSTEMD_WANTS}="radio@1"
+ACTION=="add", SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", MODE="0666", SYMLINK+="lst_uart1", OPTIONS+="last_rule", TAG+="systemd", ENV{SYSTEMD_WANTS}="radio@1"
