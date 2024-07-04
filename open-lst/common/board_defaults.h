@@ -122,7 +122,8 @@
 // by default every 10 minutes
 // Override this to 0 to disable the auto reboot
 #ifndef AUTO_REBOOT_SECONDS
-#define AUTO_REBOOT_SECONDS 600
+//#define AUTO_REBOOT_SECONDS 600
+#define AUTO_REBOOT_SECONDS 0   //auto reboot disabled
 #endif
 
 
