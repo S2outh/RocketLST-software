@@ -55,12 +55,13 @@ setup(name='openlst_tools',
               'radio_terminal=openlst_tools.terminal:main',
               'radio_cmd=openlst_tools.radio_cmd:main',
               'radio_time_sync=openlst_tools.time_sync:main',
+              'stresstest=openlst_tools.stresstest:main',
           ]
       },
       packages=['openlst_tools'],
       install_requires=[
           "blessed>=1.15.0,<2.0.0",
           "pyzmq>=13.1.0",
-          "pycrypto>=2.6",
+          "pycryptodome",
           "pyserial",
           "six"])
