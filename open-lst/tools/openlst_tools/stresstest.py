@@ -80,8 +80,8 @@ def main():
 
     con = get_handler(args.hwid, args.rx_path, args.tx_path)
     i=0
-    while True:
-        resp = con.send_cmd(f"rel ascii {i}_ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ", timeout=0.3, retries=0)
+    for i in range(1000):
+        resp = con.send_cmd(f"rel ascii {i}_ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ", timeout=0.02, retries=0)
         i+=1
 
 if __name__ == '__main__':

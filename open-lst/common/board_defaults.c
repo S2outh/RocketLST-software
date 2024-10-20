@@ -126,7 +126,11 @@ uint8_t board_apply_radio_settings(uint8_t mode) {
 	FOCCFG =    FOCCFG_FOC_BS_CS_GATE_NO_FREEZE |
 	            FOCCFG_FOC_PRE_K_3K |
 	            FOCCFG_FOC_POST_K_K_2 |
-	            FOCCFG_FOC_LIMIT_BW_CHAN_2;
+				// Changed to fix inreliable transmission (~80% success) for high data rates
+	            //FOCCFG_FOC_LIMIT_NO_COMPENSATE; // Seems fine
+	            //FOCCFG_FOC_LIMIT_BW_CHAN_8; // SmartRFM Default
+	            //FOCCFG_FOC_LIMIT_BW_CHAN_4; // Seems fine
+	            FOCCFG_FOC_LIMIT_BW_CHAN_2; // Original, too inreliable
 	// Bit synchronization for data rate is not enabled,
 	// so the gain settings probably don't matter. These
 	// were recommended by RF Studio
