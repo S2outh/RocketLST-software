@@ -87,7 +87,7 @@ uint8_t board_apply_radio_settings(uint8_t mode) {
 	// This mode is 2-FSK without Manchester encoding
 	// The sync word is 32 bits with a minimum of 30 matching
 	MDMCFG2 =   MDMCFG2_DEM_DCFILT_OFF_ENABLE |
-	            MDMCFG2_MOD_FORMAT_2_FSK |
+	            MDMCFG2_MOD_FORMAT_GFSK |
 	            MDMCFG2_MANCHESTER_DISABLED |
 	            MDMCFG2_SYNC_MODE_30_32;
 	MDMCFG1 =   MDMCFG1_FEC_ENABLED |
