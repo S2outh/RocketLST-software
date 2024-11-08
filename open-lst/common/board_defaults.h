@@ -203,16 +203,19 @@
 // https://www.ti.com/lit/ds/symlink/cc1110-cc1111.pdf?ts=1719502976799&ref_url=https%253A%252F%252Fwww.ti.com%252Fproduct%252FCC1110-CC1111%253Fbm-verify%253DAAQAAAAJ_____zIZcrRTZEtbfeo0gPeq_ygxBa76nETJvCLoGOwDVmlBrSts_Urld8DbDGqSqUCw_EW1NzGjBCJ-Iq9NfK6WWA369Xjjv6LITcyj3vj0Y2QV2jGuaTlGqWXEJWYrrTH3KrxpcYW8z3LxiuYmLwWVyGtY5hCujrZCW1z9VLzKT_gLnDblSR8vrklzyaj8tFGUK0W7mdP7z9BMvnwdJIdMj0Q4-9gXi7IFDn2sIa7TOqfen_zbGn-pKgs3SPhH1l51GDau40MP7kL3I00fQVwEq1oHoGAvO4sH-oikEJV32eRFki2A6cGvsJ4
 // Page 214
 #ifndef RF_FREQ2
-#define RF_FREQ2 0x10 // 439.715
+//#define RF_FREQ2 0x10 // 439.715
 //#define RF_FREQ2 0x10 // 437.123
+#define RF_FREQ2 0x10 // 434.200
 #endif
 #ifndef RF_FREQ1
-#define RF_FREQ1 0x49 // 439.715
+//#define RF_FREQ1 0x49 // 439.715
 //#define RF_FREQ1 0x30 // 437.123
+#define RF_FREQ1 0x14 // 434.200
 #endif
 #ifndef RF_FREQ0
-#define RF_FREQ0 0x26 // 439.715
+//#define RF_FREQ0 0x26 // 439.715
 //#define RF_FREQ0 0x93 // 437.123
+#define RF_FREQ0 0xDC // 434.200
 #endif
 // The defaults here are the CC1110 hard defaults
 #ifndef RF_SYNC_WORD1
