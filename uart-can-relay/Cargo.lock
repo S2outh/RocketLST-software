@@ -690,6 +690,7 @@ dependencies = [
  "embassy-stm32",
  "embassy-sync",
  "embassy-time",
+ "embedded-can",
  "embedded-hal 0.2.7",
  "embedded-io-async",
  "heapless",

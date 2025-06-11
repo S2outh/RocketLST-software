@@ -15,12 +15,13 @@ defmt-rtt = "0.4"
 
 cortex-m = { version = "0.7.6", features = ["inline-asm", "critical-section-single-core"] }
 cortex-m-rt = "0.7.0"
-embedded-hal = "0.2.6"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
 heapless = { version = "0.8", default-features = false }
 portable-atomic = { version = "1.5", features = ["unsafe-assume-single-core"] }
 
+embedded-hal = "0.2.6"
 embedded-io-async = { version = "0.6.1" }
+embedded-can = "0.4.1"
 
 [profile.release]
 debug = 2
