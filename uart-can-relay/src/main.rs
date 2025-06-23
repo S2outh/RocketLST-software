@@ -4,15 +4,11 @@
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_stm32::{
-    bind_interrupts,
-    can::{self, CanConfigurator, CanRx},
-    gpio::{Level, Output, Speed},
-    mode::Async,
-    peripherals::*,
-    usart::{self, Uart, UartTx}
+    bind_interrupts, can::{self, filter::ExtendedFilter, frame::Header, BufferedCanReceiver, CanConfigurator, CanRx, Frame, RxBuf, TxBuf}, gpio::{Level, Output, Speed}, mode::Async, peripherals::*, rcc::{self, mux::Fdcansel, AHBPrescaler, APBPrescaler}, usart::{self, Uart, UartTx}, Config
 };
-use embedded_can::Id;
+use embedded_can::ExtendedId;
 use heapless::Vec;
+use static_cell::StaticCell;
 use embassy_time::Timer;
 use embedded_io_async::Write;
 use {defmt_rtt as _, panic_probe as _};
@@ -24,44 +20,69 @@ bind_interrupts!(struct Irqs {
     USART3_4_5_6_LPUART1 => usart::InterruptHandler<USART6>;
 });
 
-const CAN_ID: u16 = 0x00;
-
 #[embassy_executor::task]
-async fn sender(mut can: CanRx<'static>, mut uart: UartTx<'static, Async>) {
+async fn sender(can: BufferedCanReceiver, mut uart: UartTx<'static, Async>) {
 
     let mut seq_num: u16 = 0;
     loop {
-        match can.read().await {
+        match can.receive().await {
             Ok(envelope) => {
-                if let Id::Standard(id) = envelope.frame.header().id() {
-                    if id.as_raw() != CAN_ID {
-                        continue;
-                    }
-                }
-
-                let header = [
-                    0x22, 0x69, // Uart start bytes
-                    envelope.frame.data().len() as u8 + 6, // packet length
-                    0x00, 0x01, // Hardware ID
-                    (seq_num >> 8) as u8, seq_num as u8, // SeqNum
-                    0x11 // Destination
-                ];
+                // let header = [
+                //     0x22, 0x69, // Uart start bytes
+                //     envelope.frame.data().len() as u8 + 6, // packet length
+                //     0x00, 0x01, // Hardware ID
+                //     (seq_num >> 8) as u8, seq_num as u8, // SeqNum
+                //     0x11 // Destination
+                // ];
                 seq_num = seq_num.wrapping_add(1);
 
-                let mut packet: Vec<u8, 254> = Vec::new();
-                packet.extend_from_slice(&header).unwrap();
-                packet.extend_from_slice(envelope.frame.data()).unwrap();
+                // let mut packet: Vec<u8, 16> = Vec::new(); // max data length = 8 bytes
+                // packet.extend_from_slice(&header).unwrap();
+                // packet.extend_from_slice(envelope.frame.data()).unwrap();
 
-                if let Err(e) = uart.write_all(envelope.frame.data()).await {
+                // if let Err(e) = uart.write_all(&packet).await {
+                //     error!("dropped frames: {}", e)
+                // }
+                if let Err(e) = uart.write_all(&[seq_num as u8]).await {
                     error!("dropped frames: {}", e)
                 }
             }
             Err(_) => error!("error in frame!"),
         };
-
-        Timer::after_millis(250).await;
     }
 }
+
+// #[embassy_executor::task]
+// async fn sender(mut can: CanRx<'static>, mut uart: UartTx<'static, Async>) {
+//
+//     let mut seq_num: u16 = 0;
+//     loop {
+//         match can.read().await {
+//             Ok(envelope) => {
+//                 // let header = [
+//                 //     0x22, 0x69, // Uart start bytes
+//                 //     envelope.frame.data().len() as u8 + 6, // packet length
+//                 //     0x00, 0x01, // Hardware ID
+//                 //     (seq_num >> 8) as u8, seq_num as u8, // SeqNum
+//                 //     0x11 // Destination
+//                 // ];
+//                 seq_num = seq_num.wrapping_add(1);
+//
+//                 // let mut packet: Vec<u8, 16> = Vec::new(); // max data length = 8 bytes
+//                 // packet.extend_from_slice(&header).unwrap();
+//                 // packet.extend_from_slice(envelope.frame.data()).unwrap();
+//
+//                 // if let Err(e) = uart.write_all(&packet).await {
+//                 //     error!("dropped frames: {}", e)
+//                 // }
+//                 if let Err(e) = uart.write_all(&[seq_num as u8]).await {
+//                     error!("dropped frames: {}", e)
+//                 }
+//             }
+//             Err(_) => error!("error in frame!"),
+//         };
+//     }
+// }
 
 // async fn receiver(mut can: CanTx<'static>, mut uart: UartRx<'static, Async>) {
 //     // TODO
@@ -74,31 +95,66 @@ async fn sender(mut can: CanRx<'static>, mut uart: UartTx<'static, Async>) {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    let p = embassy_stm32::init(Default::default());
+    let mut rcc_config = rcc::Config::default();
+    rcc_config.hsi = true;
+    rcc_config.sys = rcc::Sysclk::PLL1_R;
+    rcc_config.pll = Some(rcc::Pll {
+        source: rcc::PllSource::HSI,
+        prediv: rcc::PllPreDiv::DIV1,
+        mul: rcc::PllMul::MUL8,
+        divp: None,
+        divq: Some(rcc::PllQDiv::DIV2),
+        divr: Some(rcc::PllRDiv::DIV2),
+    });
+    rcc_config.mux.fdcansel = Fdcansel::PLL1_Q;
+    
+    let mut config = Config::default();
+    config.rcc = rcc_config;
+    let p = embassy_stm32::init(config);
     info!("Launching");
 
     // -- CAN configuration
-    let mut can_config = CanConfigurator::new(p.FDCAN1, p.PA11, p.PA12, Irqs);
+    let mut can_configurator = CanConfigurator::new(p.FDCAN1, p.PA11, p.PA12, Irqs);
+    can_configurator.set_config(
+        can::config::FdCanConfig::default()
+        .set_global_filter(can::config::GlobalFilter::reject_all())
+    );
+    can_configurator.set_bitrate(1_000_000); //to be ajusted
+    can_configurator.properties().set_extended_filter(can::filter::ExtendedFilterSlot::_0,
+        ExtendedFilter {
+            filter: can::filter::FilterType::DedicatedSingle(ExtendedId::new(0x12345678).unwrap()),
+            action: can::filter::Action::StoreInFifo0
+        }
+    );
 
-    can_config.set_bitrate(500_000); //to be ajusted
 
     // set standby pin to low
     let _can_standby = Output::new(p.PA10, Level::Low, Speed::Low);
 
-    let (_can_tx, can_rx, _can_p) = can_config.into_normal_mode().split();
+    static RX_BUF: StaticCell<embassy_stm32::can::RxBuf<200>> = StaticCell::new();
+    static TX_BUF: StaticCell<embassy_stm32::can::TxBuf<10>> = StaticCell::new();
+
+    let can = can_configurator.into_normal_mode()
+        .buffered(TX_BUF.init(TxBuf::<10>::new()), RX_BUF.init(RxBuf::<200>::new()));
 
     // -- Uart configuration
     let mut config = usart::Config::default();
     config.baudrate = 115200;
-    let (uart_tx, _uart_rx) = Uart::new_with_rtscts(p.USART6,
+    // let (uart_tx, _uart_rx) = Uart::new_with_rtscts(p.USART6,
+    //     p.PA5, p.PA4,
+    //     Irqs,
+    //     p.PA7, p.PA6,
+    //     p.DMA1_CH1, p.DMA1_CH2,
+    //     config).unwrap().split()
+    let (uart_tx, _uart_rx) = Uart::new(p.USART6,
         p.PA5, p.PA4,
         Irqs,
-        p.PA7, p.PA6,
         p.DMA1_CH1, p.DMA1_CH2,
         config).unwrap().split();
 
+
     spawner
-        .spawn(sender(can_rx, uart_tx))
+        .spawn(sender(can.reader(), uart_tx))
         .unwrap();
 
     let mut led = Output::new(p.PA2, Level::High, Speed::Low);
