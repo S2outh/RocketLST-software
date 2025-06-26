@@ -8,12 +8,11 @@ use embassy_executor::Spawner;
 use embassy_stm32::{
     bind_interrupts, can::{self, filter::ExtendedFilter, frame::Header, BufferedCanReceiver, CanConfigurator, CanRx, Frame, RxBuf, TxBuf}, gpio::{Level, Output, Speed}, mode::Async, peripherals::*, rcc::{self, mux::Fdcansel}, usart::{self, Uart, UartTx}, Config
 };
-use embedded_can::ExtendedId;
 use heapless::Vec;
 use static_cell::StaticCell;
 use embassy_time::Timer;
 use embedded_io_async::Write;
-use crate::rodos_can_relay::{RodosCanConfigurator, receiver::RodosCanReceiver};
+use crate::rodos_can_relay::{receiver::RodosCanReceiver, RodosCanRelay};
 
 use {defmt_rtt as _, panic_probe as _};
 
@@ -91,11 +90,11 @@ async fn main(spawner: Spawner) {
     info!("Launching");
 
     // -- CAN configuration
-    let (can_reader, _can_sender) = RodosCanConfigurator::new(
+    let (can_reader, _can_sender, _active_instance) = RodosCanRelay::new(
         CanConfigurator::new(p.FDCAN1, p.PA11, p.PA12, Irqs),
         1_000_000,
-        &[0x00],
-        ).split();
+        &[(0x00, None)],
+        ).split::<16>();
 
     // set can standby pin to low
     let _can_standby = Output::new(p.PA10, Level::Low, Speed::Low);

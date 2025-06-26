@@ -15,14 +15,25 @@ const TX_BUF_SIZE: usize = 30;
 static RX_BUF: StaticCell<embassy_stm32::can::RxBuf<RX_BUF_SIZE>> = StaticCell::new();
 static TX_BUF: StaticCell<embassy_stm32::can::TxBuf<TX_BUF_SIZE>> = StaticCell::new();
 
+pub struct Config;
+pub struct Active;
+
 /// Constructor and interface to read and write can messages with the RODOS protocol
-pub struct RodosCanConfigurator<'d> {
+pub struct RodosCanRelay<'d, State> {
     interface: BufferedCan::<'d, TX_BUF_SIZE, RX_BUF_SIZE>,
+    _state: State,
 }
 
-impl<'d> RodosCanConfigurator<'d> {
-    /// create an instance using a base can configurator, a bitrate and a list of topics
-    pub fn new(mut can_configurator: CanConfigurator<'d>, bitrate: u32, topics: &[u16]) -> Self {
+impl<'d> RodosCanRelay<'d, Config> {
+    /// # create an instance using a base can configurator, a bitrate and a list of topics
+    ///
+    /// this function takes a minimally configured CanConfigurator instance, a bitrate and a list
+    /// of topic - device value pairs. If the device is None, the topic will be accepted from all
+    /// devices. to generate the CanConfigurator simply provide a periph bus, can rx and tx pins and an interrupt reference
+    /// ```
+    /// CanConfigurator::new(p.FDCAN1, p.PA11, p.PA12, Irqs);
+    /// ```
+    pub fn new(mut can_configurator: CanConfigurator<'d>, bitrate: u32, rodos_ids: &[(u16, Option<u8>)]) -> Self {
         // reject all by default
         can_configurator.set_config(
             can::config::FdCanConfig::default()
@@ -30,18 +41,25 @@ impl<'d> RodosCanConfigurator<'d> {
         );
         // add filters for all relevant topics
         can_configurator.set_bitrate(bitrate);
-        let mut filters = topics.into_iter().map(|topic| -> ExtendedFilter {
-            let can_id_range_start: u32 = (RODOS_CAN_ID as u32) << (16 + 8) | (*topic as u32) << 8;
-            let can_id_range_end: u32 = can_id_range_start | 0xFF;
-            ExtendedFilter {
-                filter: can::filter::FilterType::Range {
+        let mut filters = rodos_ids.into_iter().map(|rodos_id| -> ExtendedFilter {
+            let can_id_range_start: u32 = (RODOS_CAN_ID as u32) << (16 + 8) | (rodos_id.0 as u32) << 8;
+            let filter = if let Some(device) = rodos_id.1 {
+                can::filter::FilterType::DedicatedSingle(
+                    ExtendedId::new(can_id_range_start | device as u32).unwrap()
+                )
+            } else {
+                let can_id_range_end: u32 = can_id_range_start | 0xFF;
+                can::filter::FilterType::Range {
                     from: ExtendedId::new(can_id_range_start).unwrap(),
                     to: ExtendedId::new(can_id_range_end).unwrap()
-                },
+                }
+            };
+            ExtendedFilter {
+                filter,
                 action: can::filter::Action::StoreInFifo0,
             }
         }).take(8).collect::<Vec<ExtendedFilter, 8>>();
-        // fill up rest of filters with disabled
+        // fill up rest of the filter slots with disabled filters
         while !filters.is_full() {
             filters.push(ExtendedFilter::disable()).unwrap();
         }
@@ -51,12 +69,18 @@ impl<'d> RodosCanConfigurator<'d> {
         let interface = can_configurator.into_normal_mode()
             .buffered(TX_BUF.init(TxBuf::<TX_BUF_SIZE>::new()), RX_BUF.init(RxBuf::<RX_BUF_SIZE>::new()));
 
-        Self { interface }
+        Self { interface, _state : Config }
     }
-    pub fn split(self) -> (receiver::RodosCanReceiver, sender::RodosCanSender) {
+    /// # Split the configurator into a configured sender and receiver instance
+    /// 
+    /// The const parameter NUMBER_OF_SOURCES specifies the size of the buffer for
+    /// incoming can messages. One "source" is one device sending on one topic.
+    /// As this is used to generate a hash map NUMBER_OF_SOURCES needs to be a power of 2
+    pub fn split<const NUMBER_OF_SOURCES: usize>(self) -> (receiver::RodosCanReceiver<NUMBER_OF_SOURCES>, sender::RodosCanSender, RodosCanRelay::<'d, Active>) {
         (
             receiver::RodosCanReceiver::new(self.interface.reader()),
-            sender::RodosCanSender::new(self.interface.writer())
+            sender::RodosCanSender::new(self.interface.writer()),
+            RodosCanRelay { interface : self.interface, _state : Active },
         )
     }
 }

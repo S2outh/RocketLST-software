@@ -3,9 +3,9 @@ use embassy_stm32::can::enums::BusError;
 /// Can frame for the RODOS can protocol
 /// conatining the topic and data
 pub struct RodosCanFrame<'a> {
-    topic: u16,
-    device: u8,
-    data: &'a[u8],
+    pub(super) topic: u16,
+    pub(super) device: u8,
+    pub(super) data: &'a[u8],
 }
 
 impl<'a> RodosCanFrame<'a> {
@@ -29,4 +29,6 @@ pub enum RodosCanError {
     CouldNotDecode(RodosCanDecodeError),
     /// one of the message frames has been dropped
     FrameDropped,
+    /// the buffer for the messages is full
+    BufferFull
 }
