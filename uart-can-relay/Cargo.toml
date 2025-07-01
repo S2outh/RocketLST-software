@@ -1,5 +1,5 @@
 [package]
-name = "software_embedded_can_modules"
+name = "RocketLST_can_relay"
 version = "0.1.0"
 edition = "2024"
 
