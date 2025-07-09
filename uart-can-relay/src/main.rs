@@ -21,8 +21,8 @@ use heapless::Vec;
 
 use {defmt_rtt as _, panic_probe as _};
 
-const RODOS_DEVICE_ID: u8 = 0x23;
-const RODOS_TOPIC_ID: u16 = 0x2333;
+const RODOS_DEVICE_ID: u8 = 5;
+const RODOS_TOPIC_ID: u16 = 1235;
 
 // bin can interrupts
 bind_interrupts!(struct Irqs {
@@ -32,7 +32,7 @@ bind_interrupts!(struct Irqs {
 });
 
 /// take can telemetry frame, add necessary headers and relay to RocketLST via uart
-async fn sender(mut can: RodosCanReceiver<16, 246>, mut uart: UartTx<'static, Async>) {
+async fn sender<const NOS: usize, const MPL: usize>(mut can: RodosCanReceiver<NOS, MPL>, mut uart: UartTx<'static, Async>) {
     let mut seq_num: u16 = 0;
     loop {
         match can.receive().await {
@@ -111,9 +111,9 @@ async fn main(_spawner: Spawner) {
         CanConfigurator::new(p.FDCAN1, p.PA11, p.PA12, Irqs),
         1_000_000,
         RODOS_DEVICE_ID,
-        &[(0x00, None)],
+        &[(1234, None)],
     )
-    .split::<16, 246>();
+    .split::<2, 246>();
 
     // set can standby pin to low
     let _can_standby = Output::new(p.PA10, Level::Low, Speed::Low);
