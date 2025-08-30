@@ -22,13 +22,14 @@ use heapless::Vec;
 use {defmt_rtt as _, panic_probe as _};
 
 const RODOS_DEVICE_ID: u8 = 0x01;
-const RODOS_TOPIC_ID: u16 = 0x01;
+const RODOS_REC_TOPIC_ID: u16 = 0x0FA0;
+const RODOS_SND_TOPIC_ID: u16 = 0x0FA0;
 
 // bin can interrupts
 bind_interrupts!(struct Irqs {
     TIM16_FDCAN_IT0 => can::IT0InterruptHandler<FDCAN1>;
     TIM17_FDCAN_IT1 => can::IT1InterruptHandler<FDCAN1>;
-    USART3_4_5_6_LPUART1 => usart::InterruptHandler<USART6>;
+    USART3_4_5_6_LPUART1 => usart::InterruptHandler<USART5>;
 });
 
 /// take can telemetry frame, add necessary headers and relay to RocketLST via uart
@@ -77,9 +78,9 @@ async fn receiver(mut can: RodosCanSender, mut uart: UartRx<'static, Async>) {
                 }
                 // start at byte 9 to skip header, add length at the end
                 let mut rodos_buffer: [u8; 257] = [0; 257];
-                rodos_buffer.copy_from_slice(&buffer[9..]);
+                rodos_buffer[..(256-9)].copy_from_slice(&buffer[9..]);
                 rodos_buffer[256] = (len - 9) as u8;
-                if let Err(e) = can.send(RODOS_TOPIC_ID, &buffer[9..]).await {
+                if let Err(e) = can.send(RODOS_SND_TOPIC_ID, &rodos_buffer).await {
                     error!("could not send frame via can: {}", e);
                 }
             }
@@ -121,9 +122,9 @@ async fn main(_spawner: Spawner) {
         CanConfigurator::new(p.FDCAN1, p.PA11, p.PA12, Irqs),
         1_000_000,
         RODOS_DEVICE_ID,
-        &[(0x0FA0, None)], // Some(0x46)
+        &[(RODOS_REC_TOPIC_ID, None)], // Some(0x46)
     )
-    .split::<2, 257>();
+    .split::<4, 257>();
 
     // set can standby pin to low
     let _can_standby = Output::new(p.PA10, Level::Low, Speed::Low);
@@ -144,11 +145,19 @@ async fn main(_spawner: Spawner) {
     //)
     //.unwrap()
     //.split();
-    let (uart_tx, uart_rx) = Uart::new(p.USART6,
-        p.PA5, p.PA4,
+    
+    // let (uart_tx, uart_rx) = Uart::new(p.USART6,
+    //     p.PA5, p.PA4,
+    //     Irqs,
+    //     p.DMA1_CH1, p.DMA1_CH2,
+    //     uart_config).unwrap().split();
+
+    let (uart_tx, uart_rx) = Uart::new(p.USART5,
+        p.PB4, p.PB3,
         Irqs,
         p.DMA1_CH1, p.DMA1_CH2,
         uart_config).unwrap().split();
+
 
     join(sender(can_reader, uart_tx), receiver(can_sender, uart_rx)).await;
 }
