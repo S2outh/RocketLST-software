@@ -1,5 +1,7 @@
-use defmt::{info, Format};
-use embassy_stm32::can::{BufferedCanReceiver, Frame, enums::BusError};
+use core::cmp::min;
+
+use defmt::Format;
+use embassy_stm32::can::{enums::BusError, frame::Envelope, BufferedCanReceiver, Frame};
 use embedded_can::Id;
 use heapless::{FnvIndexMap, Vec};
 
@@ -46,17 +48,36 @@ pub enum RodosCanReceiveError {
     MessageBufferFull,
 }
 
-struct RodosCanFramePart {
-    id: u32,
-    data: Vec<u8, 5>,
-    seq_num: usize,
-    seq_len: usize,
+enum RodosCanFramePart {
+    Head{
+        data: Vec<u8, 5>,
+        seq_len: usize,
+    },
+    Tail{
+        data: Vec<u8, 7>,
+        seq_num: usize,
+    }
 }
 
 /// Module to send messages on a rodos can
 pub struct RodosCanReceiver<const NUMBER_OF_SOURCES: usize, const MAX_PACKET_LENGTH: usize> {
     receiver: BufferedCanReceiver,
-    partial_frames: FnvIndexMap<u32, Vec<u8, MAX_PACKET_LENGTH>, NUMBER_OF_SOURCES>,
+    frames: FnvIndexMap<u32, RodosPartialFrame<MAX_PACKET_LENGTH>, NUMBER_OF_SOURCES>,
+}
+
+struct RodosPartialFrame<const MAX_PACKET_LENGTH: usize> {
+    data: Vec<u8, MAX_PACKET_LENGTH>,
+    seq_num: usize,
+    seq_len: usize,
+}
+impl<const MPL: usize> RodosPartialFrame<MPL> {
+    fn new(seq_len: usize) -> Self {
+        Self {
+            data: Vec::new(),
+            seq_num: 1,
+            seq_len,
+        }
+    }
 }
 
 impl<const NUMBER_OF_SOURCES: usize, const MAX_PACKET_LENGTH: usize>
@@ -66,7 +87,7 @@ impl<const NUMBER_OF_SOURCES: usize, const MAX_PACKET_LENGTH: usize>
     pub(super) fn new(receiver: BufferedCanReceiver) -> Self {
         RodosCanReceiver {
             receiver,
-            partial_frames: FnvIndexMap::new(),
+            frames: FnvIndexMap::new(),
         }
     }
     /// take a u32 extended id and decode it to RODOS id parts
@@ -76,76 +97,95 @@ impl<const NUMBER_OF_SOURCES: usize, const MAX_PACKET_LENGTH: usize>
         (topic, device)
     }
     /// take a can hal frame and decode it to RODOS message parts
-    fn decode(frame: &Frame) -> Result<RodosCanFramePart, RodosCanDecodeError> {
+    fn decode(frame: &Frame) -> Result<(u32, RodosCanFramePart), RodosCanDecodeError> {
         let Id::Extended(id) = frame.id() else {
             return Err(RodosCanDecodeError::WrongIDType);
         };
         let id = id.as_raw();
 
-        if frame.data().len() <= 3 {
-            // No data in can msg
+        if frame.data().len() <= 1 {
+            // Not enough metadata in can msg
             return Err(RodosCanDecodeError::NoData);
         }
         let seq_num = frame.data()[0] as usize;
-        let seq_len = frame.data()[2] as usize;
-        let data = frame.data()[3..].try_into().unwrap();
+        if seq_num == 0 {
+            // head frame part
+            if frame.data().len() <= 3 {
+                // Not enough metadata in can msg
+                return Err(RodosCanDecodeError::NoData);
+            }
+            let seq_len = ((frame.data()[1] as usize) << 8) | frame.data()[2] as usize;
+            let data = frame.data()[3..].try_into().unwrap();
+            Ok((id, RodosCanFramePart::Head {
+                data,
+                seq_len,
+            }))
+        } else {
+            let data = frame.data()[1..].try_into().unwrap();
+            Ok((id, RodosCanFramePart::Tail {
+                data,
+                seq_num,
+            }))
+        }
+    }
+    fn process(&mut self, envelope: Envelope) -> Result<Option<u32>, RodosCanReceiveError> {
+        let (id, frame_part) = Self::decode(&envelope.frame)
+            .map_err(|e| RodosCanReceiveError::CouldNotDecode(e))?;
 
-        Ok(RodosCanFramePart {
-            id,
-            data,
-            seq_num,
-            seq_len,
-        })
+        if !self.frames.contains_key(&id) {
+            // add entry if it doesn't already exist
+            self.frames
+                .insert(id, RodosPartialFrame::new(0))
+                .map_err(|_| RodosCanReceiveError::SourceBufferFull)?;
+        }
+        
+        let frame_ref = &mut self.frames[&id];
+
+        match frame_part {
+            RodosCanFramePart::Head { data, seq_len } => {
+                // check if seq len is too long
+                if seq_len > MAX_PACKET_LENGTH {
+                    return Err(RodosCanReceiveError::MessageBufferFull);
+                }
+                // start new partial frame
+                *frame_ref = RodosPartialFrame::new(seq_len);
+                let free_space = frame_ref.data.len() - seq_len;
+                let data_len = data.len();
+                frame_ref.data.extend(data.into_iter().take(min(data_len, free_space)));
+            }
+            RodosCanFramePart::Tail { data, seq_num } => {
+                if frame_ref.seq_num == seq_num {
+                    let free_space = frame_ref.data.len() - frame_ref.seq_len;
+                    let data_len = data.len();
+                    frame_ref.data.extend(data.into_iter().take(min(data_len, free_space)));
+
+                    frame_ref.seq_num += 1;
+                } else {
+                    return Err(RodosCanReceiveError::FrameDropped);
+                }
+            }
+        }
+        
+        // if buffer length >= seqence length, the frame is complete.
+        // return the frame id
+        if frame_ref.seq_len <= frame_ref.data.len() {
+            Ok(Some(id))
+        } else {
+            Ok(None)
+        }
     }
     /// receive the next rodos frame async
-    pub async fn receive(&mut self) -> Result<RodosCanFrame, RodosCanReceiveError> {
+    pub async fn receive<'a>(&'a mut self) -> Result<RodosCanFrame<'a>, RodosCanReceiveError> {
         loop {
-            match self.receiver.receive().await {
-                Ok(envelope) => {
-                    info!("test");
-                    let frame_part = Self::decode(&envelope.frame)
-                        .map_err(|e| RodosCanReceiveError::CouldNotDecode(e))?;
-                    // check if seq len is too long
-                    if frame_part.seq_len * 5 > MAX_PACKET_LENGTH {
-                        return Err(RodosCanReceiveError::MessageBufferFull);
-                    }
-                    // add entry if it doesn't already exist
-                    if !self.partial_frames.contains_key(&frame_part.id) {
-                        self.partial_frames
-                            .insert(frame_part.id, Vec::new())
-                            .map_err(|_| RodosCanReceiveError::SourceBufferFull)?;
-                    }
-                    // if the seq_num is 0 this is the start of a new message. clear the buffer.
-                    else if frame_part.seq_num == 0 {
-                        self.partial_frames[&frame_part.id] = Vec::new();
-                    }
-                    let current_seq_num = self.partial_frames[&frame_part.id].len() / 5;
-                    // add current frame to buffer
-                    if frame_part.seq_num == current_seq_num {
-                        self.partial_frames[&frame_part.id].extend(frame_part.data);
-                    }
-                    // if the seq_num is smaller than the length, this is a dupplicate msg. drop it.
-                    else if frame_part.seq_num < current_seq_num {
-                        continue;
-                    }
-                    // if the seq_num does not match the length return an error
-                    else {
-                        self.partial_frames[&frame_part.id] = Vec::new();
-                        return Err(RodosCanReceiveError::FrameDropped);
-                    }
-                    // if buffer length >= seqence length, the frame is complete.
-                    // return the frame and clear the buffer
-                    if frame_part.seq_num >= frame_part.seq_len {
-                        let data = &self.partial_frames[&frame_part.id][..];
-                        let (topic, device) = Self::decode_id(frame_part.id);
-                        return Ok(RodosCanFrame {
-                            topic,
-                            device,
-                            data,
-                        });
-                    }
-                }
-                Err(e) => return Err(RodosCanReceiveError::BusError(e)),
+            let can_frame = self.receiver.receive().await.map_err(|e| RodosCanReceiveError::BusError(e))?;
+            if let Some(id) = self.process(can_frame)? {
+                let data = &self.frames[&id].data[..];
+                let (topic, device) = Self::decode_id(id);
+                return Ok(RodosCanFrame {
+                    topic,
+                    device,
+                    data,
+                });
             }
         }
     }

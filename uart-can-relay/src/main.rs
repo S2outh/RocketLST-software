@@ -37,22 +37,24 @@ async fn sender<const NOS: usize, const MPL: usize>(mut can: RodosCanReceiver<NO
     loop {
         match can.receive().await {
             Ok(frame) => {
-                info!("received smt");
+                let number_of_bytes = frame.data()[256];
+
                 let header = [
                     0x22, 0x69,                          // Uart start bytes
-                    frame.data().len() as u8 + 6,        // packet length
+                    number_of_bytes + 6,                 // packet length (+6 for remaining header)
                     0x00, 0x01,                          // Hardware ID
                     (seq_num >> 8) as u8, seq_num as u8, // SeqNum
                     0x11,                                // Destination
+                    0x11                                 // Mode = ascii
                 ];
                 seq_num = seq_num.wrapping_add(1);
 
                 let _ = frame.topic();
                 let _ = frame.device();
 
-                let mut packet: Vec<u8, 254> = Vec::new(); // max openlst data length
+                let mut packet: Vec<u8, 256> = Vec::new(); // max openlst data length
                 packet.extend_from_slice(&header).unwrap();
-                packet.extend_from_slice(frame.data()).unwrap();
+                packet.extend_from_slice(&frame.data()[..number_of_bytes as usize]).unwrap();
 
                 if let Err(e) = uart.write_all(&packet).await {
                     error!("dropped frames: {}", e)
@@ -64,13 +66,20 @@ async fn sender<const NOS: usize, const MPL: usize>(mut can: RodosCanReceiver<NO
 }
 
 /// receive data from RocketLST and transmit via can
-/// TODO update to filter out eventual header data from the RocketLST
 async fn receiver(mut can: RodosCanSender, mut uart: UartRx<'static, Async>) {
-    let mut buffer: [u8; 254] = [0; 254];
+    let mut buffer: [u8; 256] = [0; 256];
     loop {
         match uart.read_until_idle(&mut buffer).await {
             Ok(len) => {
-                if let Err(e) = can.send(RODOS_TOPIC_ID, &buffer[..len]).await {
+                if len < 9 {
+                    // incomplete msg
+                    continue;
+                }
+                // start at byte 9 to skip header, add length at the end
+                let mut rodos_buffer: [u8; 257] = [0; 257];
+                rodos_buffer.copy_from_slice(&buffer[9..]);
+                rodos_buffer[256] = (len - 9) as u8;
+                if let Err(e) = can.send(RODOS_TOPIC_ID, &buffer[9..]).await {
                     error!("could not send frame via can: {}", e);
                 }
             }
@@ -114,7 +123,7 @@ async fn main(_spawner: Spawner) {
         RODOS_DEVICE_ID,
         &[(0x0FA0, None)], // Some(0x46)
     )
-    .split::<2, 246>();
+    .split::<2, 257>();
 
     // set can standby pin to low
     let _can_standby = Output::new(p.PA10, Level::Low, Speed::Low);
@@ -122,24 +131,24 @@ async fn main(_spawner: Spawner) {
     // -- Uart configuration
     let mut uart_config = usart::Config::default();
     uart_config.baudrate = 115200;
-    let (uart_tx, uart_rx) = Uart::new_with_rtscts(
-        p.USART6,
-        p.PA5,
-        p.PA4,
+    //let (uart_tx, uart_rx) = Uart::new_with_rtscts(
+    //    p.USART6,
+    //    p.PA5,
+    //    p.PA4,
+    //    Irqs,
+    //    p.PA7,
+    //    p.PA6,
+    //    p.DMA1_CH1,
+    //    p.DMA1_CH2,
+    //    uart_config,
+    //)
+    //.unwrap()
+    //.split();
+    let (uart_tx, uart_rx) = Uart::new(p.USART6,
+        p.PA5, p.PA4,
         Irqs,
-        p.PA7,
-        p.PA6,
-        p.DMA1_CH1,
-        p.DMA1_CH2,
-        uart_config,
-    )
-    .unwrap()
-    .split();
-    // let (uart_tx, _uart_rx) = Uart::new(p.USART6,
-    //     p.PA5, p.PA4,
-    //     Irqs,
-    //     p.DMA1_CH1, p.DMA1_CH2,
-    //     uart_config).unwrap().split();
+        p.DMA1_CH1, p.DMA1_CH2,
+        uart_config).unwrap().split();
 
     join(sender(can_reader, uart_tx), receiver(can_sender, uart_rx)).await;
 }

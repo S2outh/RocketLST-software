@@ -2,6 +2,7 @@ use defmt::Format;
 use embassy_stm32::can::BufferedCanSender;
 use embedded_can::{ExtendedId, Frame};
 use heapless::Vec;
+use core::iter::once;
 
 use super::RODOS_CAN_ID;
 
@@ -31,20 +32,25 @@ impl RodosCanSender {
     pub async fn send(&mut self, topic: u16, data: &[u8]) -> Result<(), RodosCanSendError> {
         let id = ExtendedId::new(self.encode_id(topic)).unwrap();
 
-        // split data into chunks of 5 bytes
-        let mut frame_data_chunks = data.chunks(5);
-
         // if frame too long return an error
-        if frame_data_chunks.len() > u8::MAX as usize {
+        if data.len() > u16::MAX as usize {
             return Err(RodosCanSendError::ToMuchData);
         }
+
+        // split data into chunks bytes
+        let mut frame_data_chunks = once(data.get(..5).unwrap_or(&data[..]))
+                                    .chain(data.get(5..).unwrap_or(&[]).chunks(7));
+
         let mut frame_index: u8 = 0;
         while let Some(frame_data) = frame_data_chunks.next() {
             // create the frame header
-            let frame_header = [frame_index, 0x00, frame_data_chunks.len() as u8];
+            let mut frame = if frame_index == 0 {
+                Vec::<_, 8>::from_slice(&[0x00, (data.len() >> 8) as u8, data.len() as u8]).unwrap()
+            } else {
+                Vec::<_, 8>::from_slice(&[frame_index]).unwrap()
+            };
 
             // create frame
-            let mut frame = Vec::<_, 8>::from_slice(&frame_header).unwrap();
             frame.extend_from_slice(frame_data).unwrap();
 
             // send on can
