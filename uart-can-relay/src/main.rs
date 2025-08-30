@@ -72,14 +72,18 @@ async fn receiver(mut can: RodosCanSender, mut uart: UartRx<'static, Async>) {
     loop {
         match uart.read_until_idle(&mut buffer).await {
             Ok(len) => {
-                if len < 9 {
+                const HEADER_LEN: usize = 9;
+                const TELECMD_MAX_LEN: usize = 32;
+
+                if len <= HEADER_LEN {
                     // incomplete msg
                     continue;
                 }
-                // start at byte 9 to skip header, add length at the end
-                let mut rodos_buffer: [u8; 257] = [0; 257];
-                rodos_buffer[..(256-9)].copy_from_slice(&buffer[9..]);
-                rodos_buffer[256] = (len - 9) as u8;
+                
+                let mut rodos_buffer: [u8; TELECMD_MAX_LEN] = [0; TELECMD_MAX_LEN];
+                rodos_buffer[..(TELECMD_MAX_LEN-HEADER_LEN)].copy_from_slice(&buffer[HEADER_LEN..]);
+                rodos_buffer[TELECMD_MAX_LEN - 1] = (len - HEADER_LEN) as u8;
+
                 if let Err(e) = can.send(RODOS_SND_TOPIC_ID, &rodos_buffer).await {
                     error!("could not send frame via can: {}", e);
                 }
