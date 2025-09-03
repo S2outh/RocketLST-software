@@ -40,7 +40,8 @@ async fn sender<const NOS: usize, const MPL: usize>(mut can: RodosCanReceiver<NO
     loop {
         match can.receive().await {
             Ok(frame) => {
-                let number_of_bytes = frame.data()[256];
+                let number_of_bytes = frame.data()[246]; // for now hardcoded, the last byte is the
+                                                         // number of actually used bytes
 
                 let header = [
                     0x22, 0x69,                          // Uart start bytes
@@ -133,7 +134,7 @@ async fn main(_spawner: Spawner) {
         RODOS_DEVICE_ID,
         &[(RODOS_REC_TOPIC_ID, None)], // Some(0x46)
     )
-    .split::<4, 257>();
+    .split::<4, 247>();
 
     // set can standby pin to low
     let _can_standby = Output::new(p.PA10, Level::Low, Speed::Low);
