@@ -43,12 +43,14 @@ async fn sender<const NOS: usize, const MPL: usize>(mut can: RodosCanReceiver<NO
     loop {
         match can.receive().await {
             Ok(frame) => {
-                let number_of_bytes = frame.data()[0]; // for now hardcoded, the first byte is the
-                                                       // number of actually used bytes
+                let rodos_msg_len = frame.data()[0]; // for now hardcoded, the first byte is the
+                                                     // number of actually used bytes
+
+                info!("send: {}", rodos_msg_len);
 
                 let header = [
                     0x22, 0x69,                          // Uart start bytes
-                    number_of_bytes + 6,                 // packet length (+6 for remaining header)
+                    rodos_msg_len + 6,                   // packet length (+6 for remaining header)
                     0x00, 0x01,                          // Hardware ID
                     (seq_num >> 8) as u8, seq_num as u8, // SeqNum
                     0x11,                                // Destination
@@ -63,7 +65,7 @@ async fn sender<const NOS: usize, const MPL: usize>(mut can: RodosCanReceiver<NO
                 packet.extend_from_slice(&header).unwrap();
                 // skip first byte cause it is the msg length, send the rest up to length
                 // number_of_bytes
-                packet.extend_from_slice(&frame.data()[1..][..number_of_bytes as usize]).unwrap();
+                packet.extend_from_slice(&frame.data()[1..][..rodos_msg_len as usize]).unwrap();
 
                 if let Err(e) = uart.write_all(&packet).await {
                     error!("dropped frames: {}", e)
@@ -87,12 +89,14 @@ async fn receiver(mut can: RodosCanSender, mut uart: UartRx<'static, Async>) {
                     continue;
                 }
 
+                let rodos_msg_len = min(RODOS_MAX_RAW_MSG_LEN, len-HEADER_LEN);
+                
+                info!("received: {}", rodos_msg_len);
+                
                 let rodos_buffer = &mut buffer[HEADER_LEN-1..];
+                rodos_buffer[0] = rodos_msg_len as u8;
                 
-                let telecmd_len = min(RODOS_MAX_RAW_MSG_LEN, len-HEADER_LEN);
-                rodos_buffer[0] = telecmd_len as u8;
-                
-                if let Err(e) = can.send(RODOS_SND_TOPIC_ID, &rodos_buffer[..telecmd_len+1]).await {
+                if let Err(e) = can.send(RODOS_SND_TOPIC_ID, &rodos_buffer[..rodos_msg_len+1]).await {
                     error!("could not send frame via can: {}", e);
                 }
             }
