@@ -134,15 +134,19 @@ async fn main(_spawner: Spawner) {
     info!("Launching");
 
     // -- CAN configuration
-    let (can_reader, can_sender, _active_instance) = RodosCanInterface::new(
+    let mut rodos_can_configurator = RodosCanInterface::new(
         CanConfigurator::new(p.FDCAN1, p.PA11, p.PA12, Irqs),
+        RODOS_DEVICE_ID,
+    );
+
+    rodos_can_configurator
+        .set_bitrate(1_000_000)
+        .add_receive_topic(RODOS_REC_TOPIC_ID, None).unwrap();
+
+    let (can_reader, can_sender, _active_instance) = rodos_can_configurator.split_buffered::<4, RODOS_MAX_RAW_MSG_LEN, TX_BUF_SIZE, RX_BUF_SIZE>(
         TX_BUF.init(TxBuf::<TX_BUF_SIZE>::new()),
         RX_BUF.init(RxBuf::<RX_BUF_SIZE>::new()),
-        1_000_000,
-        RODOS_DEVICE_ID,
-        &[(RODOS_REC_TOPIC_ID, None)], // Some(0x46)
-    )
-    .split::<4, RODOS_MAX_RAW_MSG_LEN>();
+    );
 
     // set can standby pin to low
     let _can_standby = Output::new(p.PA10, Level::Low, Speed::Low);

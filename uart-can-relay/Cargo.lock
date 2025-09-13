@@ -715,7 +715,7 @@ checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 [[package]]
 name = "rodos_can_interface"
 version = "0.1.0"
-source = "git+ssh://git@gitlab2.informatik.uni-wuerzburg.de/wuespace/south/rodos-can-interface.git#1b537402fb4441fd141e5ba72f348bf87b8925e3"
+source = "git+ssh://git@gitlab2.informatik.uni-wuerzburg.de/wuespace/south/rodos-can-interface.git#9b76859170c95792f74b34eb0095cd76aa317f64"
 dependencies = [
  "defmt 0.3.100",
  "embassy-stm32",
@@ -832,9 +832,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.18"
+version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a5f39404a5da50712a4c1eecf25e90dd62b613502b7e925fd4e4d19b5c96512"
+checksum = "f63a545481291138910575129486daeaf8ac54aee4387fe7906919f7830c7d9d"
 
 [[package]]
 name = "vcell"
