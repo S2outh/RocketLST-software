@@ -26,6 +26,7 @@
             clang
             llvmPackages.bintools
             rustup
+            cargo-edit
 						probe-rs-tools
           ];
 
