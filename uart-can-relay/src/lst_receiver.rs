@@ -1,3 +1,5 @@
+use core::ops::Range;
+
 use embassy_stm32::{mode::Async, usart::{Error, UartRx}};
 use defmt::Format;
 
@@ -15,6 +17,7 @@ pub enum ReceiverError {
     ParseError(&'static str),
     UartError(Error),
 }
+#[derive(Format)]
 pub struct LSTTelemetry {
     pub uptime: u32,
     pub rssi: i8,
@@ -24,8 +27,8 @@ pub struct LSTTelemetry {
     pub packets_rejected_checksum: u32,
     pub packets_rejected_other: u32,
 }
-pub enum LSTMessage<'m> {
-    Relay(&'m [u8]),
+pub enum LSTMessage {
+    Relay(Range<usize>),
     Telem(LSTTelemetry),
     Ack,
     Nack,
@@ -53,16 +56,16 @@ impl<'a> LSTReceiver<'a> {
             })
         }
     }
-    fn parse_local_msg<'m>(msg: &[u8]) -> Result<LSTMessage<'m>, ReceiverError> {
+    fn parse_local_msg(msg: &[u8]) -> Result<LSTMessage, ReceiverError> {
         // parsing the available commands from the openlst firmware
         Ok(match msg[0] {
             0x10 => LSTMessage::Ack,
             0xFF => LSTMessage::Nack,
-            0x18 => LSTMessage::Telem(Self::parse_telem(&msg[1..])?),
+            0x18 => LSTMessage::Telem(Self::parse_telem(&msg[2..])?),
             _ => LSTMessage::Unknown,
         })
     }
-    pub async fn receive<'m>(&mut self, buffer: &'m mut [u8]) -> Result<LSTMessage<'m>, ReceiverError> {
+    pub async fn receive(&mut self, buffer: &mut [u8]) -> Result<LSTMessage, ReceiverError> {
         match self.uart_rx.read_until_idle(buffer).await {
             Ok(len) => {
                 if len <= HEADER_LEN {
@@ -72,8 +75,8 @@ impl<'a> LSTReceiver<'a> {
 
                 // msg comming from this lst, not relay
                 Ok(match buffer[7] {
-                    DESTINATION_LOCAL => Self::parse_local_msg(&buffer[8..])?,
-                    DESTINATION_RELAY => LSTMessage::Relay(&buffer[HEADER_LEN..]),
+                    DESTINATION_LOCAL => Self::parse_local_msg(&buffer[HEADER_LEN..len])?,
+                    DESTINATION_RELAY => LSTMessage::Relay(HEADER_LEN..len),
                     _ => LSTMessage::Unknown
                 })
             }

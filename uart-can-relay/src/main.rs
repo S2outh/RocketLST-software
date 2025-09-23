@@ -14,7 +14,6 @@ use embassy_futures::join::join3;
 use embassy_stm32::{
     bind_interrupts, can::{self, CanConfigurator, RxBuf, TxBuf}, gpio::{Level, Output, Speed}, peripherals::*, rcc::{self, mux::Fdcansel}, usart::{self, Uart}, wdg::IndependentWatchdog, Config
 };
-use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, signal::Signal};
 
 use {defmt_rtt as _, panic_probe as _};
 
@@ -28,7 +27,8 @@ const RODOS_DEVICE_ID: u8 = 0x01;
 #[repr(u16)]
 enum TopicId {
     Cmd = 8000,
-    Telem = 4000,
+    RawSend = 4000,
+    RawRecv = 4001,
     TelemReq = 1000,
     TelemUptime = 1420,
     TelemRssi = 1421,
@@ -58,20 +58,11 @@ bind_interrupts!(struct Irqs {
 });
 
 /// take can telemetry frame, add necessary headers and relay to RocketLST via uart
-async fn sender<const NOS: usize, const MPL: usize>(mut can: RodosCanReceiver<NOS, MPL>, mut lst: LSTSender<'static>, lst_cmd_receiver: &Signal<ThreadModeRawMutex, u8>) {
+async fn sender<const NOS: usize, const MPL: usize>(mut can: RodosCanReceiver<NOS, MPL>, mut lst: LSTSender<'static>) {
     loop {
-        // receive lst cmds
-        if let Some(cmd) = lst_cmd_receiver.try_take() {
-            match cmd {
-                0x00 => lst.send_cmd(LSTCmd::Reboot).await.unwrap_or_else(|e| {
-                    error!("could not execute reboot: {}", e);
-                }),
-                _ => error!("unknown cmd"),
-            }
-        }
-
         const RODOS_TM_REQ_TOPIC_ID: u16 = TopicId::TelemReq as u16;
-        const RODOS_TM_TOPIC_ID: u16 = TopicId::Telem as u16;
+        const RODOS_TM_TOPIC_ID: u16 = TopicId::RawSend as u16;
+        const RODOS_CMD_TOPIC_ID: u16 = TopicId::Cmd as u16;
 
         // receive from can
         match can.receive().await {
@@ -88,6 +79,23 @@ async fn sender<const NOS: usize, const MPL: usize>(mut can: RodosCanReceiver<NO
                             error!("could not send via lsp {}", e);
                         }
                     },
+                    RODOS_CMD_TOPIC_ID => {
+                        if frame.data().len() < 3 {
+                            error!("bad cmd received");
+                            continue;
+                        }
+                        // match subsystem id
+                        if frame.data()[0] != LST_CMD_SUBSYS_ID {
+                            continue;
+                        }
+                        // match cmd
+                        match frame.data()[1] {
+                            0x00 => lst.send_cmd(LSTCmd::Reboot).await.unwrap_or_else(|e| {
+                                error!("could not execute cmd: {}", e);
+                            }),
+                            _ => error!("unknown cmd"),
+                        }
+                    }
                     RODOS_TM_REQ_TOPIC_ID => {
                         if let Err(e) = lst.send_cmd(LSTCmd::GetTelem).await {
                             error!("could not send cmd {}", e);
@@ -102,36 +110,29 @@ async fn sender<const NOS: usize, const MPL: usize>(mut can: RodosCanReceiver<NO
 }
 
 /// receive data from RocketLST and transmit via can
-async fn receiver(mut can: RodosCanSender, mut lst: LSTReceiver<'static>, lst_cmd_sender: &Signal<ThreadModeRawMutex, u8>) {
+async fn receiver(mut can: RodosCanSender, mut lst: LSTReceiver<'static>) {
     let mut buffer = [0u8; 256];
     loop {
         match lst.receive(&mut buffer).await {
             Ok(msg) => {
                 match msg {
-                    LSTMessage::Relay(rodos_msg) => {
-                        let rodos_msg_len = min(RODOS_TC_MSG_LEN, rodos_msg.len());
-                        
-                        if rodos_msg_len < 3 {
-                            // rodos cmd is missing required bytes
-                            continue;
-                        }
+                    LSTMessage::Relay(range) => {
+                        let rodos_msg_len = min(RODOS_TC_MSG_LEN, range.len());
                         
                         info!("received: {}", rodos_msg_len);
+                        // add msg len to rodos msg
+                        let rodos_msg = &mut buffer[range.start - 1 .. range.start + rodos_msg_len];
+                        rodos_msg[0] = rodos_msg_len as u8;
 
-                        // tc for this lst, signal it to the sender for execution
-                        if rodos_msg[0] == LST_CMD_SUBSYS_ID {
-                            lst_cmd_sender.signal(rodos_msg[1]);
-                            continue;
-                        }
-                        
                         // otherwise send it via can to the rest of the system
-                        if let Err(e) = can.send(TopicId::Cmd as u16, &rodos_msg[..rodos_msg_len]).await {
+                        if let Err(e) = can.send(TopicId::RawRecv as u16, rodos_msg).await {
                             error!("could not send frame via can: {}", e);
                         }
 
 
                     }
                     LSTMessage::Telem(telemetry) => {
+                        info!("telem {}", telemetry);
                         let _ = can.send(TopicId::TelemUptime as u16, &telemetry.uptime.to_le_bytes()).await;
                         let _ = can.send(TopicId::TelemRssi as u16, &telemetry.rssi.to_le_bytes()).await;
                         let _ = can.send(TopicId::TelemLQI as u16, &telemetry.lqi.to_le_bytes()).await;
@@ -198,8 +199,9 @@ async fn main(_spawner: Spawner) {
 
     rodos_can_configurator
         .set_bitrate(1_000_000)
-        .add_receive_topic(TopicId::Telem as u16, None).unwrap()
-        .add_receive_topic(TopicId::TelemReq as u16, None).unwrap();
+        .add_receive_topic(TopicId::RawSend as u16, None).unwrap()
+        .add_receive_topic(TopicId::Cmd as u16, None).unwrap();
+        //.add_receive_topic(TopicId::TelemReq as u16, None).unwrap();
 
     let (can_reader, can_sender, _active_instance) = rodos_can_configurator
         .activate::<4, RODOS_MAX_RAW_MSG_LEN, TX_BUF_SIZE, RX_BUF_SIZE>(
@@ -236,7 +238,5 @@ async fn main(_spawner: Spawner) {
     let lst_tx = LSTSender::new(uart_tx);
     let lst_rx = LSTReceiver::new(uart_rx);
 
-    let signal = Signal::new();
-
-    join3(sender(can_reader, lst_tx, &signal), receiver(can_sender, lst_rx, &signal), petter(watchdog)).await;
+    join3(sender(can_reader, lst_tx), receiver(can_sender, lst_rx), petter(watchdog)).await;
 }

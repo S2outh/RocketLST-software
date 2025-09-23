@@ -32,8 +32,8 @@ impl<'a> LSTSender<'a> {
     pub fn get_header(&mut self, msg_len: u8, dest: u8) -> [u8; HEADER_LEN] {
         let header = [
             0x22, 0x69,                          // Uart start bytes
-            msg_len + 6,                         // packet length (+6 for remaining header)
-            0x00, 0x01,                          // Hardware ID (essentially irrelevant)
+            msg_len + 5,                         // packet length (+5 for remaining header)
+            0x01, 0x00,                          // Hardware ID (for the lst to accept commands)
             (self.seq_num >> 8) as u8, self.seq_num as u8, // SeqNum
             dest,                                // Destination (0x01: LST, 0x11: Relay)
         ];
