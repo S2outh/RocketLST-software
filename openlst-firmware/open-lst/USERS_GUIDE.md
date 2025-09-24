@@ -546,6 +546,8 @@ complete the command (use the `<TAB>` key to view it).
 
 ### Packet Structure
 
+Warning: The compiler (sdcc) for the embedded C code produces little endian code; therefore a 2 byte hardware id `0x0001` supplied to commands results in a transmitted id of `0x0100`! 
+
 Packets include a few parts to help the radios direct and respond to commands
 appropriately:
 
