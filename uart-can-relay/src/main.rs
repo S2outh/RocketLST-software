@@ -61,12 +61,14 @@ bind_interrupts!(struct Irqs {
 
 /// take can telemetry frame, add necessary headers and relay to RocketLST via uart
 async fn sender<const NOS: usize, const MPL: usize>(mut can: RodosCanReceiver<NOS, MPL>, mut lst: LSTSender<'static>) {
-    loop {
-        const RODOS_TM_REQ_TOPIC_ID: u16 = TopicId::TelemReq as u16;
-        const RODOS_TM_TOPIC_ID: u16 = TopicId::RawSend as u16;
-        const RODOS_CMD_TOPIC_ID: u16 = TopicId::Cmd as u16;
 
-        let mut telem_req_counter = 0;
+    let mut telem_req_counter = 0;
+
+    const RODOS_TM_REQ_TOPIC_ID: u16 = TopicId::TelemReq as u16;
+    const RODOS_TM_TOPIC_ID: u16 = TopicId::RawSend as u16;
+    const RODOS_CMD_TOPIC_ID: u16 = TopicId::Cmd as u16;
+
+    loop {
 
         // receive from can
         match can.receive().await {
@@ -151,7 +153,7 @@ async fn receiver(mut can: RodosCanSender, mut lst: LSTReceiver<'static>) {
                     }
                     LSTMessage::Ack => info!("ack :)"),
                     LSTMessage::Nack => info!("nack :("),
-                    LSTMessage::Unknown => error!("unknown msg received"),
+                    LSTMessage::Unknown(cmd) => error!("unknown lst msg received: {}", cmd),
                 }
             }
             Err(e) => {

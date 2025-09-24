@@ -32,7 +32,7 @@ pub enum LSTMessage {
     Telem(LSTTelemetry),
     Ack,
     Nack,
-    Unknown,
+    Unknown(u8),
 }
 
 impl<'a> LSTReceiver<'a> {
@@ -61,8 +61,8 @@ impl<'a> LSTReceiver<'a> {
         Ok(match msg[0] {
             0x10 => LSTMessage::Ack,
             0xFF => LSTMessage::Nack,
-            0x18 => LSTMessage::Telem(Self::parse_telem(&msg[2..])?),
-            _ => LSTMessage::Unknown,
+            0x18 => LSTMessage::Telem(Self::parse_telem(&msg[1..])?),
+            unknown => LSTMessage::Unknown(unknown),
         })
     }
     pub async fn receive(&mut self, buffer: &mut [u8]) -> Result<LSTMessage, ReceiverError> {
@@ -77,7 +77,7 @@ impl<'a> LSTReceiver<'a> {
                 Ok(match buffer[7] {
                     DESTINATION_LOCAL => Self::parse_local_msg(&buffer[HEADER_LEN..len])?,
                     DESTINATION_RELAY => LSTMessage::Relay(HEADER_LEN..len),
-                    _ => LSTMessage::Unknown
+                    _ => LSTMessage::Unknown(0x00)
                 })
             }
             Err(e) => {
