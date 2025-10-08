@@ -22,6 +22,7 @@
             pkgs.cc-tool
             #pkgs.stdenv.cc.cc.lib
             pkgs.picocom
+            pkgs.python3
           ];
           shellHook = ''
 	        echo "Welcome in the OpenLST Shell!"
