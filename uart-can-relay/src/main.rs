@@ -26,10 +26,10 @@ const RODOS_DEVICE_ID: u8 = 0x01;
 
 #[repr(u16)]
 enum TopicId {
-    Cmd = 8000,
-    RawSend = 4000,
-    RawRecv = 4001,
-    TelemReq = 1000,
+    RawSend = 1000,
+    RawRecv = 1001,
+    Cmd = 1100,
+    TelemReq = 1103,
     TelemUptime = 1420,
     TelemRssi = 1421,
     TelemLQI = 1422,
@@ -47,8 +47,6 @@ const RODOS_TC_MSG_LEN: usize = 19; // 16 byte payload + subsys id, cmd id, pl l
 const RX_BUF_SIZE: usize = 500;
 const TX_BUF_SIZE: usize = 30;
 
-const TELEM_EVERY_N: u8 = 10;
-
 static RX_BUF: StaticCell<embassy_stm32::can::RxBuf<RX_BUF_SIZE>> = StaticCell::new();
 static TX_BUF: StaticCell<embassy_stm32::can::TxBuf<TX_BUF_SIZE>> = StaticCell::new();
 
@@ -61,8 +59,6 @@ bind_interrupts!(struct Irqs {
 
 /// take can telemetry frame, add necessary headers and relay to RocketLST via uart
 async fn sender<const NOS: usize, const MPL: usize>(mut can: RodosCanReceiver<NOS, MPL>, mut lst: LSTSender<'static>) {
-
-    let mut telem_req_counter = 0;
 
     const RODOS_TM_REQ_TOPIC_ID: u16 = TopicId::TelemReq as u16;
     const RODOS_TM_TOPIC_ID: u16 = TopicId::RawSend as u16;
@@ -103,10 +99,6 @@ async fn sender<const NOS: usize, const MPL: usize>(mut can: RodosCanReceiver<NO
                         }
                     }
                     RODOS_TM_REQ_TOPIC_ID => {
-                        telem_req_counter = (telem_req_counter + 1) % TELEM_EVERY_N;
-                        if telem_req_counter != 0 {
-                            continue;
-                        }
                         if let Err(e) = lst.send_cmd(LSTCmd::GetTelem).await {
                             error!("could not send cmd {}", e);
                         }
