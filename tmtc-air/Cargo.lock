@@ -698,8 +698,9 @@ checksum = "99d9a13982dcf210057a8a78572b2217b667c3beacbf3a0d8b454f6f82837d38"
 
 [[package]]
 name = "rodos_can_interface"
-version = "0.1.0"
-source = "git+ssh://git@gitlab2.informatik.uni-wuerzburg.de/wuespace/south/rodos-can-interface.git#6900b95759c2fcfcfe096e72c9a617199b27bfe3"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5746322ecba03cea3b612e8815b682c32a36d0fa014df01e3136dd2e154e0ddb"
 dependencies = [
  "defmt 1.0.1",
  "embassy-stm32",
