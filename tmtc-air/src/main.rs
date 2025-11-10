@@ -10,7 +10,6 @@ use embassy_time::Timer;
 use rodos_can_interface::{RodosCanInterface, receiver::RodosCanReceiver, sender::RodosCanSender};
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_futures::join::join3;
 use embassy_stm32::{
     bind_interrupts, can::{self, CanConfigurator, RxBuf, TxBuf}, gpio::{Level, Output, Speed}, peripherals::*, rcc::{self, mux::Fdcansel}, usart::{self, Uart}, wdg::IndependentWatchdog, Config
 };
@@ -58,7 +57,8 @@ bind_interrupts!(struct Irqs {
 });
 
 /// take can telemetry frame, add necessary headers and relay to RocketLST via uart
-async fn sender<const NOS: usize, const MPL: usize>(mut can: RodosCanReceiver<NOS, MPL>, mut lst: LSTSender<'static>) {
+#[embassy_executor::task]
+async fn sender(mut can: RodosCanReceiver<4, RODOS_MAX_RAW_MSG_LEN>, mut lst: LSTSender<'static>) {
 
     const RODOS_TM_REQ_TOPIC_ID: u16 = TopicId::TelemReq as u16;
     const RODOS_TM_TOPIC_ID: u16 = TopicId::RawSend as u16;
@@ -112,6 +112,7 @@ async fn sender<const NOS: usize, const MPL: usize>(mut can: RodosCanReceiver<NO
 }
 
 /// receive data from RocketLST and transmit via can
+#[embassy_executor::task]
 async fn receiver(mut can: RodosCanSender, mut lst: LSTReceiver<'static>) {
     let mut buffer = [0u8; 256];
     loop {
@@ -156,7 +157,8 @@ async fn receiver(mut can: RodosCanSender, mut lst: LSTReceiver<'static>) {
 }
 
 /// Watchdog petting task
-async fn petter(mut watchdog: IndependentWatchdog<'_, IWDG>) {
+#[embassy_executor::task]
+async fn petter(mut watchdog: IndependentWatchdog<'static, IWDG>) {
     loop {
         watchdog.pet();
         Timer::after_millis(200).await;
@@ -183,7 +185,7 @@ fn get_rcc_config() -> rcc::Config {
 
 /// program entry
 #[embassy_executor::main]
-async fn main(_spawner: Spawner) {
+async fn main(spawner: Spawner) {
     let mut config = Config::default();
     config.rcc = get_rcc_config();
     let p = embassy_stm32::init(config);
@@ -206,7 +208,7 @@ async fn main(_spawner: Spawner) {
         .add_receive_topic(TopicId::TelemReq as u16, None).unwrap();
 
     let (can_reader, can_sender, _active_instance) = rodos_can_configurator
-        .activate::<4, RODOS_MAX_RAW_MSG_LEN, TX_BUF_SIZE, RX_BUF_SIZE>(
+        .activate(
         TX_BUF.init(TxBuf::<TX_BUF_SIZE>::new()),
         RX_BUF.init(RxBuf::<RX_BUF_SIZE>::new()),
     ).split_buffered();
@@ -240,5 +242,9 @@ async fn main(_spawner: Spawner) {
     let lst_tx = LSTSender::new(uart_tx);
     let lst_rx = LSTReceiver::new(uart_rx);
 
-    join3(sender(can_reader, lst_tx), receiver(can_sender, lst_rx), petter(watchdog)).await;
+    spawner.must_spawn(petter(watchdog));
+    spawner.must_spawn(sender(can_reader, lst_tx));
+    spawner.must_spawn(receiver(can_sender, lst_rx));
+
+    core::future::pending::<()>().await;
 }
