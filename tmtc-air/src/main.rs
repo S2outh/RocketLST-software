@@ -3,7 +3,6 @@
 
 mod lst_sender;
 mod lst_receiver;
-mod can_config;
 
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
 
@@ -13,9 +12,7 @@ use embassy_executor::Spawner;
 use embassy_stm32::{
     Config, bind_interrupts, can::{self, BufferedFdCanReceiver, CanConfigurator, RxFdBuf, TxFdBuf}, gpio::{Level, Output, Speed}, peripherals::*, rcc::{self, mux::Fdcansel}, usart::{self, Uart}, wdg::IndependentWatchdog
 };
-use south_common::{telemetry as tm, DynBeacon, LowRateTelemetry, MidRateTelemetry};
-
-use crate::can_config::CanPeriphConfig;
+use south_common::{telemetry as tm, can_config::CanPeriphConfig, DynBeacon, LowRateTelemetry, MidRateTelemetry};
 
 use {defmt_rtt as _, panic_probe as _};
 
