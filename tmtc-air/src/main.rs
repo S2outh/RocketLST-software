@@ -70,7 +70,7 @@ async fn can_receiver_thread(
         match can.receive().await {
             Ok(envelope) => {
                 if let embedded_can::Id::Standard(id) = envelope.frame.id() {
-                    mid_rate_beacon.lock().await.insert_slice(tm::from_id(id.as_raw()), envelope.frame.data()).unwrap();
+                    mid_rate_beacon.lock().await.insert_slice(tm::from_id(id.as_raw()).unwrap(), envelope.frame.data()).unwrap();
                 }
                 else { defmt::unreachable!() };
             }

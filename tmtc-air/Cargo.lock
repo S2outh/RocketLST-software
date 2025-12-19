@@ -712,7 +712,7 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 [[package]]
 name = "south-common"
 version = "0.2.0"
-source = "git+ssh://git@github.com/S2outh/south-common.git#9ca6ebbd1e03a7973f243ab22e3aee827f06748a"
+source = "git+ssh://git@github.com/S2outh/south-common.git#a1a694b9ae509dd5e78bf247d8b4046bcdff66b1"
 dependencies = [
  "defmt 1.0.1",
  "embassy-stm32",
@@ -825,7 +825,7 @@ dependencies = [
 [[package]]
 name = "tmtc-system"
 version = "0.1.0"
-source = "git+ssh://git@github.com/S2outh/telemetry-system.git#0918d434aab1df19fede3081b19c4778da3212b6"
+source = "git+ssh://git@github.com/S2outh/telemetry-system.git#f803b06cc888ebc9d4c13350de851d710a22ee7a"
 dependencies = [
  "tmtc-system-macros",
 ]
@@ -833,7 +833,7 @@ dependencies = [
 [[package]]
 name = "tmtc-system-macros"
 version = "0.1.0"
-source = "git+ssh://git@github.com/S2outh/telemetry-system.git#0918d434aab1df19fede3081b19c4778da3212b6"
+source = "git+ssh://git@github.com/S2outh/telemetry-system.git#f803b06cc888ebc9d4c13350de851d710a22ee7a"
 dependencies = [
  "heck",
  "proc-macro2",
