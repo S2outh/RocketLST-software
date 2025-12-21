@@ -623,9 +623,9 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "portable-atomic"
-version = "1.11.1"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f84267b20a16ea918e43c6a88433c2d54fa145c92a811b5b047ccbe153674483"
+checksum = "f59e70c4aef1e55797c2e8fd94a4f2a973fc972cfde0e0b05f683667b0cd39dd"
 
 [[package]]
 name = "proc-macro-error-attr2"
@@ -712,7 +712,7 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 [[package]]
 name = "south-common"
 version = "0.2.0"
-source = "git+ssh://git@github.com/S2outh/south-common.git#a1a694b9ae509dd5e78bf247d8b4046bcdff66b1"
+source = "git+ssh://git@github.com/S2outh/south-common.git#566a31dd3610da7ec7561900fea541210d46d945"
 dependencies = [
  "defmt 1.0.1",
  "embassy-stm32",
@@ -825,7 +825,7 @@ dependencies = [
 [[package]]
 name = "tmtc-system"
 version = "0.1.0"
-source = "git+ssh://git@github.com/S2outh/telemetry-system.git#f803b06cc888ebc9d4c13350de851d710a22ee7a"
+source = "git+ssh://git@github.com/S2outh/telemetry-system.git#9ee2d87b53b5a6105d348723cfb10daa5a3742a2"
 dependencies = [
  "tmtc-system-macros",
 ]
@@ -833,7 +833,7 @@ dependencies = [
 [[package]]
 name = "tmtc-system-macros"
 version = "0.1.0"
-source = "git+ssh://git@github.com/S2outh/telemetry-system.git#f803b06cc888ebc9d4c13350de851d710a22ee7a"
+source = "git+ssh://git@github.com/S2outh/telemetry-system.git#9ee2d87b53b5a6105d348723cfb10daa5a3742a2"
 dependencies = [
  "heck",
  "proc-macro2",

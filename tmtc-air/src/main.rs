@@ -10,7 +10,7 @@ use embassy_time::Timer;
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_stm32::{
-    Config, bind_interrupts, can::{self, BufferedFdCanReceiver, CanConfigurator, RxFdBuf, TxFdBuf}, gpio::{Level, Output, Speed}, peripherals::*, rcc::{self, mux::Fdcansel}, usart::{self, Uart}, wdg::IndependentWatchdog
+    Config, bind_interrupts, can::{self, BufferedFdCanReceiver, CanConfigurator, RxFdBuf, TxFdBuf}, crc::{self, Crc}, gpio::{Level, Output, Speed}, peripherals::*, rcc::{self, mux::Fdcansel}, usart::{self, Uart}, wdg::IndependentWatchdog
 };
 use south_common::{telemetry as tm, can_config::CanPeriphConfig, DynBeacon, LowRateTelemetry, MidRateTelemetry};
 
@@ -24,10 +24,11 @@ use lst_receiver::{LSTReceiver, LSTMessage};
 // General setup stuff
 const STARTUP_DELAY: u64 = 1000;
 
-// Static beacon allocation
+// Static object allocation
 static LRB: StaticCell<Mutex<ThreadModeRawMutex, LowRateTelemetry>> = StaticCell::new();
 static MRB: StaticCell<Mutex<ThreadModeRawMutex, MidRateTelemetry>> = StaticCell::new();
 static LST: StaticCell<Mutex<ThreadModeRawMutex, LSTSender>> = StaticCell::new();
+static CRC: StaticCell<Mutex<ThreadModeRawMutex, Crc>> = StaticCell::new();
 
 // Can setup stuff
 const RX_BUF_SIZE: usize = 500;
@@ -48,12 +49,21 @@ bind_interrupts!(struct Irqs {
 async fn lst_sender_thread(
     send_intervall: u64,
     beacon: &'static Mutex<ThreadModeRawMutex, dyn DynBeacon>,
+    crc: &'static Mutex<ThreadModeRawMutex, Crc<'static>>,
     lst: &'static Mutex<ThreadModeRawMutex, LSTSender<'static>>) {
 
     loop {
         info!("sending beacon");
-        
-        if let Err(e) = lst.lock().await.send(beacon.lock().await.bytes()).await {
+        let mut beacon = beacon.lock().await;
+
+        let bytes = {
+            let mut crc = crc.lock().await;
+            crc.reset();
+            let mut crc_func = |bytes: &[u8]| crc.feed_bytes(bytes) as u16;
+            beacon.bytes(&mut crc_func)
+        };
+
+        if let Err(e) = lst.lock().await.send(bytes).await {
             error!("could not send via lsp {}", e);
         }
         Timer::after_millis(send_intervall).await;
@@ -143,6 +153,17 @@ fn get_rcc_config() -> rcc::Config {
     rcc_config
 }
 
+/// get CRC configuration for crc16_ccitt
+fn get_crc_config() -> crc::Config {
+    crc::Config::new(
+        crc::InputReverseConfig::None,
+        false,
+        crc::PolySize::Width16,
+        0xFFFF,
+        0x1021,
+    ).unwrap()
+}
+
 /// program entry
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -184,6 +205,9 @@ async fn main(spawner: Spawner) {
     let lst_tx = LST.init(Mutex::new(LSTSender::new(uart_tx)));
     let lst_rx = LSTReceiver::new(uart_rx);
 
+    // -- CRC setup
+    let crc = CRC.init(Mutex::new(Crc::new(p.CRC, get_crc_config())));
+
     // -- Beacons
     let low_rate_beacon = LRB.init(Mutex::new(LowRateTelemetry::new()));
     let mid_rate_beacon = MRB.init(Mutex::new(MidRateTelemetry::new()));
@@ -195,8 +219,8 @@ async fn main(spawner: Spawner) {
     // LST sender startup
     Timer::after_millis(STARTUP_DELAY).await;
     spawner.must_spawn(telemetry_thread(low_rate_beacon, lst_tx, lst_rx));
-    spawner.must_spawn(lst_sender_thread(10_000, low_rate_beacon, lst_tx));
-    spawner.must_spawn(lst_sender_thread(1_000, mid_rate_beacon, lst_tx));
+    spawner.must_spawn(lst_sender_thread(10_000, low_rate_beacon, crc, lst_tx));
+    spawner.must_spawn(lst_sender_thread(1_000, mid_rate_beacon, crc, lst_tx));
 
     core::future::pending::<()>().await;
 }
