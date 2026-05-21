@@ -4,13 +4,16 @@
 #![feature(const_cmp)]
 #![feature(never_type)]
 
+extern crate alloc;
+
 mod ground_tm_defs;
 mod macros;
 mod timesync;
 
-use core::net::SocketAddr;
+use {defmt_rtt as _, panic_probe as _};
 
 use defmt::*;
+use embedded_alloc::LlffHeap as Heap;
 use embassy_executor::Spawner;
 use embassy_nats::{self, UserPwdAuthenticator};
 use embassy_net::{
@@ -36,8 +39,7 @@ use openlst_driver::{
     lst_sender::{LSTCmd, LSTSender},
 };
 use static_cell::StaticCell;
-
-use {defmt_rtt as _, panic_probe as _};
+use core::net::SocketAddr;
 
 use south_common::chell::{Beacon, ParseError, ground::SerializableChellValue};
 
@@ -58,8 +60,7 @@ const WATCHDOG_PETTING_INTERVAL_US: u32 = WATCHDOG_TIMEOUT_US / 2;
 const HEAP_KB: usize = 64;
 
 #[global_allocator]
-static ALLOCATOR: emballoc::Allocator<{ HEAP_KB * 1024 }> = emballoc::Allocator::new();
-extern crate alloc;
+static HEAP: Heap = Heap::empty();
 
 // lst setup
 const OPENLST_HWID: u16 = 0x2DEC;
@@ -239,6 +240,12 @@ async fn main(spawner: Spawner) {
     let mut config = Config::default();
     config.rcc = get_rcc_config();
     let p = embassy_stm32::init(config);
+
+    // init global allocator
+    unsafe {
+        embedded_alloc::init!(HEAP, HEAP_KB * 1024);
+    }
+
     info!("Launching");
 
     // unleash independent watchdog

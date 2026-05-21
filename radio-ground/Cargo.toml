@@ -18,6 +18,8 @@ embassy-time = { version = "0.5.1", features = ["defmt", "defmt-timestamp-uptime
 embassy-futures = { version = "0.1.2" }
 embassy-net = { version = "0.9.0", features = ["tcp", "udp", "dhcpv4", "defmt", "medium-ethernet", "proto-ipv6", "dns"] }
 
+embedded-alloc = { version = "0.7.0", default-features = false, features = ["llff"] }
+
 defmt = { version = "1.0", features = ["alloc"] }
 defmt-rtt = "1.1"
 panic-probe = { version = "1.0", features = ["print-defmt"] }
@@ -33,8 +35,6 @@ south-common = { features = ["ground"], git = "https://github.com/S2outh/south-c
 openlst-driver = { features = ["defmt"], branch = "dev", git = "https://github.com/S2outh/RocketLST-software.git" }
 
 embassy-nats = { git = "https://github.com/S2outh/embassy-nats.git" }
-
-emballoc = "0.3.0"
 paste = "1.0.15"
 
 erased-serde = { version = "0.4.10", default-features = false, features = ["alloc"] }
