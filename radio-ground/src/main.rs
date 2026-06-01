@@ -84,6 +84,8 @@ static TCP_TX_BUF: StaticCell<[u8; TCP_TX_BUF_SIZE]> = StaticCell::new();
 // NATS
 static NATS_STORAGE: embassy_nats::Storage = embassy_nats::Storage::new();
 const NATS_ADDR: &str = "nats.local";
+const NATS_USER: &str = "nats";
+const NATS_PWD: &str = "south";
 
 type EthDevice = Ethernet<'static, ETH, GenericPhy<Sma<'static, ETH_SMA>>>;
 
@@ -360,8 +362,8 @@ async fn main(spawner: Spawner) {
     };
 
     // nats connection
-    let (mut client, runner) =
-        embassy_nats::new_with_user_pwd("nats", "nats", socket_addr, socket, &NATS_STORAGE);
+    let (client, runner) =
+        embassy_nats::new_with_user_pwd(NATS_USER, NATS_PWD, socket_addr, socket, &NATS_STORAGE);
 
     // Initialize beacons
     #[cfg(feature = "primary")]
