@@ -83,8 +83,7 @@ static TCP_TX_BUF: StaticCell<[u8; TCP_TX_BUF_SIZE]> = StaticCell::new();
 
 // NATS
 static NATS_STORAGE: embassy_nats::Storage = embassy_nats::Storage::new();
-// const NATS_ADDR: &str = "10.42.0.1";
-const NATS_ADDR: &str = "nats.tichygames.de";
+const NATS_ADDR: &str = "nats.local";
 
 type EthDevice = Ethernet<'static, ETH, GenericPhy<Sma<'static, ETH_SMA>>>;
 
@@ -220,15 +219,10 @@ async fn local_lst_telemetry(
     );
 }
 
-pub async fn parse_or_resolve(
+async fn resolve_nats_addr(
     stack: &Stack<'_>,
-    s: &str,
 ) -> Result<SocketAddr, embassy_net::dns::Error> {
-    if let Ok(sa) = s.parse::<SocketAddr>() {
-        return Ok(sa);
-    }
-
-    let ips = stack.dns_query(s, DnsQueryType::A).await?;
+    let ips = stack.dns_query(NATS_ADDR, DnsQueryType::A).await?;
     let Some(ip) = ips.first() else {
         return Err(embassy_net::dns::Error::Failed);
     };
@@ -356,7 +350,7 @@ async fn main(spawner: Spawner) {
 
     // resolve addr
     let socket_addr = loop {
-        match parse_or_resolve(&stack, NATS_ADDR).await {
+        match resolve_nats_addr(&stack).await {
             Ok(addr) => break addr,
             Err(e) => {
                 warn!("could not resolve nats addr: {:?}, retrying...", e);
