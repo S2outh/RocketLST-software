@@ -30,7 +30,7 @@ static_cell = { version = "2.1.1", features = ["nightly"] }
 
 embedded-io-async = "0.7.0"
 
-south-common = { features = ["ground"], git = "https://github.com/S2outh/south-common.git" }
+south-common = { features = ["ground", "timesync"], git = "https://github.com/S2outh/south-common.git" }
 
 openlst-driver = { features = ["defmt"], branch = "dev", git = "https://github.com/S2outh/RocketLST-software.git" }
 
@@ -40,6 +40,7 @@ paste = "1.0.15"
 erased-serde = { version = "0.4.10", default-features = false, features = ["alloc"] }
 serde = { version = "1.0.228", default-features = false, features = ["alloc", "derive"] }
 minicbor-serde = { version = "0.6.2", features = ["alloc"] }
+portable-atomic = "1.13.1"
 
 [profile.release]
 debug = 2

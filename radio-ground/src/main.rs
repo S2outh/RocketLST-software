@@ -8,7 +8,6 @@ extern crate alloc;
 
 mod ground_tm_defs;
 mod macros;
-mod timesync;
 
 use {defmt_rtt as _, panic_probe as _};
 
@@ -19,7 +18,7 @@ use embassy_nats::{self, UserPwdAuthenticator};
 use embassy_net::{
     Stack, StackResources,
     dns::DnsQueryType,
-    tcp::{self, TcpSocket},
+    tcp::{self, TcpSocket}, udp::{PacketMetadata, UdpSocket},
 };
 use embassy_stm32::{
     Config, bind_interrupts,
@@ -33,15 +32,16 @@ use embassy_stm32::{
     usart::{self, Uart, UartTx},
     wdg::IndependentWatchdog,
 };
-use embassy_time::{Duration, Ticker, Timer};
+use embassy_time::{Duration, Instant, Ticker, Timer};
 use openlst_driver::{
     lst_receiver::{LSTMessage, LSTReceiver, LSTTelemetry},
     lst_sender::{LSTCmd, LSTSender},
 };
+use portable_atomic::AtomicU64;
 use static_cell::StaticCell;
-use core::net::SocketAddr;
+use core::{net::SocketAddr, sync::atomic::Ordering};
 
-use south_common::chell::{Beacon, ParseError, ground::SerializableChellValue};
+use south_common::{chell::{Beacon, ParseError, ground::SerializableChellValue}, timesync::NTPTimeSource};
 
 #[cfg(feature = "primary")]
 use south_common::beacons::{
@@ -55,6 +55,17 @@ use south_common::beacons::SecondaryLstBeacon;
 // General setup stuff
 const WATCHDOG_TIMEOUT_US: u32 = 300_000;
 const WATCHDOG_PETTING_INTERVAL_US: u32 = WATCHDOG_TIMEOUT_US / 2;
+
+// Ntp
+const NTP_ADDR: &str = "ntp.local";
+const NTP_PORT: u16 = 123;
+
+static RX_META: StaticCell<[PacketMetadata; 1]> = StaticCell::new();
+static RX_BUF: StaticCell<[u8; 64]> = StaticCell::new();
+static TX_META: StaticCell<[PacketMetadata; 1]> = StaticCell::new();
+static TX_BUF: StaticCell<[u8; 64]> = StaticCell::new();
+
+static UNIX_TIME_OFFSET: AtomicU64 = AtomicU64::new(0);
 
 // Heap setup
 const HEAP_KB: usize = 64;
@@ -84,6 +95,7 @@ static TCP_TX_BUF: StaticCell<[u8; TCP_TX_BUF_SIZE]> = StaticCell::new();
 // NATS
 static NATS_STORAGE: embassy_nats::Storage = embassy_nats::Storage::new();
 const NATS_ADDR: &str = "nats.local";
+const NATS_PORT: u16 = 4222;
 const NATS_USER: &str = "nats";
 const NATS_PWD: &str = "south";
 
@@ -133,6 +145,10 @@ fn get_rcc_config() -> rcc::Config {
     rcc_config
 }
 
+fn time_setter_fn(time: u64) {
+    UNIX_TIME_OFFSET.store(time - Instant::now().as_micros(), Ordering::Release);
+}
+
 /// get CRC configuration for crc16_ccitt
 fn get_crc_config() -> crc::Config {
     crc::Config::new(
@@ -174,6 +190,11 @@ async fn nats_task(mut runner: embassy_nats::Runner<'static, UserPwdAuthenticato
 }
 
 #[embassy_executor::task]
+async fn ntp_task(mut runner: NTPTimeSource<'static, 'static>) -> ! {
+    runner.run().await
+}
+
+#[embassy_executor::task]
 async fn telemetry_request_thread(mut lst_sender: LSTSender<UartTx<'static, Async>>) {
     const LST_TM_INTERVALL: Duration = Duration::from_secs(1);
     let mut ticker = Ticker::every(LST_TM_INTERVALL);
@@ -188,9 +209,8 @@ async fn telemetry_request_thread(mut lst_sender: LSTSender<UartTx<'static, Asyn
 async fn local_lst_telemetry(
     nats_sender: &mut embassy_nats::Client<'static>,
     tm: LSTTelemetry,
-    unix_time_offset_us: i64,
 ) {
-    let timestamp = timesync::current_unix_time_micros(unix_time_offset_us);
+    let timestamp = Instant::now().as_micros() + UNIX_TIME_OFFSET.load(Ordering::Acquire);
 
     info!("Received local lst Telemetry at {}", timestamp);
 
@@ -221,14 +241,16 @@ async fn local_lst_telemetry(
     );
 }
 
-async fn resolve_nats_addr(
+async fn resolve_addr(
     stack: &Stack<'_>,
+    addr: &str,
+    port: u16,
 ) -> Result<SocketAddr, embassy_net::dns::Error> {
-    let ips = stack.dns_query(NATS_ADDR, DnsQueryType::A).await?;
+    let ips = stack.dns_query(addr, DnsQueryType::A).await?;
     let Some(ip) = ips.first() else {
         return Err(embassy_net::dns::Error::Failed);
     };
-    Ok(SocketAddr::new((*ip).into(), 4222))
+    Ok(SocketAddr::new((*ip).into(), port))
 }
 
 #[embassy_executor::main]
@@ -345,14 +367,36 @@ async fn main(spawner: Spawner) {
 
     info!("Network initialized");
 
-    let unix_time_offset_us = timesync::sync_internet_time(&stack).await;
+    // initialize unix time query over ntp
+    let ntp_socket = UdpSocket::new(stack,
+        RX_META.init([PacketMetadata::EMPTY]),
+        RX_BUF.init([0; _]),
+        TX_META.init([PacketMetadata::EMPTY]),
+        TX_BUF.init([0; _]),
+    );
+    
+    // resolve ntp addr
+    let socket_addr = loop {
+        match resolve_addr(&stack, NTP_ADDR, NTP_PORT).await {
+            Ok(addr) => break addr,
+            Err(e) => {
+                warn!("could not resolve nats addr: {:?}, retrying...", e);
+                Timer::after_secs(2).await;
+            }
+        }
+    };
+
+    let time_source_runner = NTPTimeSource::new(ntp_socket, socket_addr, &time_setter_fn)
+        .expect("could not create NTP time source");
+
+    spawner.spawn(ntp_task(time_source_runner).unwrap());
 
     // Initizlize Nats socket
     let socket = TcpSocket::new(stack, TCP_RX_BUF.init([0; _]), TCP_TX_BUF.init([0; _]));
 
-    // resolve addr
+    // resolve nats addr
     let socket_addr = loop {
-        match resolve_nats_addr(&stack).await {
+        match resolve_addr(&stack, NATS_ADDR, NATS_PORT).await {
             Ok(addr) => break addr,
             Err(e) => {
                 warn!("could not resolve nats addr: {:?}, retrying...", e);
@@ -362,7 +406,7 @@ async fn main(spawner: Spawner) {
     };
 
     // nats connection
-    let (client, runner) =
+    let (mut client, runner) =
         embassy_nats::new_with_user_pwd(NATS_USER, NATS_PWD, socket_addr, socket, &NATS_STORAGE);
 
     // Initialize beacons
@@ -412,7 +456,7 @@ async fn main(spawner: Spawner) {
                     }
                 }
                 LSTMessage::Telem(tm) => {
-                    local_lst_telemetry(&mut client, tm, unix_time_offset_us).await;
+                    local_lst_telemetry(&mut client, tm).await;
                 }
                 LSTMessage::Ack => info!("LST Ack"),
                 LSTMessage::Nack => info!("LST Nack"),
