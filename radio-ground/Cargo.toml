@@ -42,5 +42,13 @@ serde = { version = "1.0.228", default-features = false, features = ["alloc", "d
 minicbor-serde = { version = "0.6.2", features = ["alloc"] }
 portable-atomic = "1.13.1"
 
+[profile.dev]
+opt-level = 3
+debug = 2
+debug-assertions = false
+lto = true
+codegen-units = 16
+
 [profile.release]
+lto = true
 debug = 2

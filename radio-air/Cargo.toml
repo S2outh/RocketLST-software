@@ -36,5 +36,13 @@ openlst-driver = { features = ["defmt"], branch = "dev", git = "ssh://git@github
 paste = "1.0.15"
 #openlst-driver = { features = ["defmt"], path = "../openlst-driver" }
 
+[profile.dev]
+opt-level = 3
+debug = 2
+debug-assertions = false
+lto = true
+codegen-units = 16
+
 [profile.release]
+lto = true
 debug = 2
