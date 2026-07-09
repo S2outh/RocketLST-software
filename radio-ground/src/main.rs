@@ -57,7 +57,7 @@ const WATCHDOG_TIMEOUT_US: u32 = 300_000;
 const WATCHDOG_PETTING_INTERVAL_US: u32 = WATCHDOG_TIMEOUT_US / 2;
 
 // Ntp
-const NTP_ADDR: &str = "ntp.local";
+const NTP_ADDR: &str = "ntp.lan";
 const NTP_PORT: u16 = 123;
 
 static RX_META: StaticCell<[PacketMetadata; 1]> = StaticCell::new();
@@ -94,7 +94,7 @@ static TCP_TX_BUF: StaticCell<[u8; TCP_TX_BUF_SIZE]> = StaticCell::new();
 
 // NATS
 static NATS_STORAGE: embassy_nats::Storage = embassy_nats::Storage::new();
-const NATS_ADDR: &str = "nats.local";
+const NATS_ADDR: &str = "nats.lan";
 const NATS_PORT: u16 = 4222;
 const NATS_USER: &str = "nats";
 const NATS_PWD: &str = "south";
