@@ -125,7 +125,7 @@ pub async fn lst_telemetry_thread(
             let mut lst_beacon = lst_beacon.lock().await;
 
             macro_rules! process_tm {
-                ($($val:ident),*) => { paste::paste!{ $(
+                ($($val:ident),* $(,)?) => { paste::paste!{ $(
                     let container = LstChellUnion::new(&tm::$val, &lst_tm.[<$val: snake>]).unwrap();
                     tm_sender.send(container).await;
 
@@ -135,12 +135,7 @@ pub async fn lst_telemetry_thread(
 
             process_tm!(
                 Uptime,
-                Rssi,
-                Lqi,
                 PacketsSent,
-                PacketsGood,
-                PacketsRejectedChecksum,
-                PacketsRejectedOther
             );
         } else {
             error!("lst did not answer");

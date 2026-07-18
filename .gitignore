@@ -14,4 +14,4 @@
 target/
 
 # secrets
-flatsat.token
+*.token
