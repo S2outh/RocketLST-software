@@ -83,8 +83,9 @@ static S_RX_BUF: StaticCell<[u8; S_RX_BUF_SIZE]> = StaticCell::new();
 // Ethernet
 // queues for raw packets before and after processing
 static PACKET_QUEUE: StaticCell<PacketQueue<4, 4>> = StaticCell::new();
-// resources to hold the sockets used by the net driver. One for DHCP, one for DNS and one for TCP
-static RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();
+// resources to hold the sockets used by the net driver.
+// One for DHCP, one for DNS, one for the NTP UDP socket and one for the NATS TCP socket
+static RESOURCES: StaticCell<StackResources<4>> = StaticCell::new();
 // buffer sizes for tcp data before and after processing
 const TCP_RX_BUF_SIZE: usize = 1024;
 static TCP_RX_BUF: StaticCell<[u8; TCP_RX_BUF_SIZE]> = StaticCell::new();
