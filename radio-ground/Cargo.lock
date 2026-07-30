@@ -358,7 +358,7 @@ dependencies = [
 [[package]]
 name = "embassy-nats"
 version = "0.1.0"
-source = "git+https://github.com/S2outh/embassy-nats.git#2c68d014d27e12cb8e8ebd09a268599c2a48f0c6"
+source = "git+https://github.com/S2outh/embassy-nats.git#c33a688c3bb40bf6ade5deb4220511f0bfee1d68"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
@@ -888,7 +888,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 [[package]]
 name = "openlst-driver"
 version = "1.0.0"
-source = "git+https://github.com/S2outh/RocketLST-software.git?branch=dev#40a55e07193efa8424adb7f0a949779d2c19eb59"
+source = "git+https://github.com/S2outh/RocketLST-software.git?branch=dev#72bef48f041b755c04f9b07dbf528f9f77ec98af"
 dependencies = [
  "defmt 1.1.1",
  "embedded-io-async 0.7.0",
