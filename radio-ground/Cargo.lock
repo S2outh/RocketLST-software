@@ -101,8 +101,8 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "chell"
-version = "7.0.1"
-source = "git+https://github.com/S2outh/chell-sys.git#584f24cd840be868e64fbc2050d0c771d95fa212"
+version = "7.5.0"
+source = "git+https://github.com/S2outh/chell-sys.git#0f47cc989b17ba109256b5f7586bf47ea2064a8e"
 dependencies = [
  "chell-macros",
  "erased-serde",
@@ -111,8 +111,8 @@ dependencies = [
 
 [[package]]
 name = "chell-macros"
-version = "7.0.1"
-source = "git+https://github.com/S2outh/chell-sys.git#584f24cd840be868e64fbc2050d0c771d95fa212"
+version = "7.5.0"
+source = "git+https://github.com/S2outh/chell-sys.git#0f47cc989b17ba109256b5f7586bf47ea2064a8e"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -888,7 +888,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 [[package]]
 name = "openlst-driver"
 version = "1.0.0"
-source = "git+https://github.com/S2outh/RocketLST-software.git?branch=dev#72bef48f041b755c04f9b07dbf528f9f77ec98af"
+source = "git+https://github.com/S2outh/RocketLST-software.git?branch=dev#fbfc6b8b7d808da5aa19f08e6de81ab8ec9b2f09"
 dependencies = [
  "defmt 1.1.1",
  "embedded-io-async 0.7.0",
@@ -1183,7 +1183,7 @@ dependencies = [
 [[package]]
 name = "south-common"
 version = "4.0.0"
-source = "git+https://github.com/S2outh/south-common.git#16457da799d2ab567b80dfa37d341559c4ae544d"
+source = "git+https://github.com/S2outh/south-common.git#449152f5cb050e7fee3bae4e027a8931eea0e741"
 dependencies = [
  "bitflags 2.13.1",
  "chell",

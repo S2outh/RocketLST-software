@@ -24,9 +24,9 @@ use embassy_stm32::{
 };
 use embassy_time::{Duration, Timer};
 use south_common::{
-    chell::{Beacon, ChellDefinition},
+    chell::Beacon,
     configs::can_config::CanPeriphConfig,
-    definitions::{internal_msgs, telemetry as tm},
+    definitions::telemetry as tm,
     gen_obdh_types,
     types::LSTCommand,
 };
@@ -274,8 +274,6 @@ async fn main(spawner: Spawner) {
 
     can_configurator
         .add_receive_topic_range(tm::id_range())
-        .unwrap()
-        .add_receive_topic(internal_msgs::TimesyncAnswer.id())
         .unwrap();
 
     let can_instance = can_configurator.activate(
@@ -300,10 +298,10 @@ async fn main(spawner: Spawner) {
     spawner.spawn(io_threads::can_receiver_task(can_receiver).unwrap());
     spawner.spawn(io_threads::can_sender_task(can_sender).unwrap());
     spawner
-        .spawn(io_threads::command_execution_task(lst_tx, COM_CHANNELS.get_tc_receiver()).unwrap());
+        .spawn(io_threads::command_execution_task(lst_tx, &COM_CHANNELS).unwrap());
     #[cfg(feature = "primary")]
     spawner.spawn(
-        io_threads::lst_telemetry_thread(&LST_BCN, lst_tx, lst_rx, COM_CHANNELS.get_tm_sender())
+        io_threads::lst_telemetry_thread(&LST_BCN, lst_tx, lst_rx, &COM_CHANNELS)
             .unwrap(),
     );
 

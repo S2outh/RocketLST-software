@@ -21,7 +21,7 @@ use south_common::{
 };
 
 use crate::{
-    LstCanReceiver, LstCanSender, LstComChannels, LstTCReceiver, LstChellUnion, LstTMSender,
+    LstCanReceiver, LstCanSender, LstComChannels, LstChellUnion,
 };
 
 pub struct BeaconIngress {
@@ -109,7 +109,8 @@ pub async fn lst_telemetry_thread(
     lst_beacon: &'static Mutex<ThreadModeRawMutex, LSTBeacon>,
     lst: &'static Mutex<ThreadModeRawMutex, LSTSender<UartTx<'static, Async>>>,
     mut lst_recv: LSTReceiver<RingBufferedUartRx<'static>>,
-    tm_sender: LstTMSender,
+    com_channels: &'static LstComChannels,
+
 ) {
     const LST_TM_INTERVAL: Duration = Duration::from_secs(10);
     const LST_TM_TIMEOUT: Duration = Duration::from_millis(1000);
@@ -127,7 +128,7 @@ pub async fn lst_telemetry_thread(
             macro_rules! process_tm {
                 ($($val:ident),* $(,)?) => { paste::paste!{ $(
                     let container = LstChellUnion::new(&tm::$val, &lst_tm.[<$val: snake>]).unwrap();
-                    tm_sender.send(container).await;
+                    com_channels.send_tm(container).await;
 
                     lst_beacon.[<$val: snake>] = Some(lst_tm.[<$val: snake>]);
                 )* } };
@@ -147,10 +148,10 @@ pub async fn lst_telemetry_thread(
 #[embassy_executor::task]
 pub async fn command_execution_task(
     lst: &'static Mutex<ThreadModeRawMutex, LSTSender<UartTx<'static, Async>>>,
-    tc_receiver: LstTCReceiver,
+    com_channels: &'static LstComChannels,
 ) {
     loop {
-        match tc_receiver.receive().await {
+        match com_channels.receive_tc().await {
             LSTCommand::Reboot => {
                 if let Err(e) = lst.lock().await.cmd(LSTCmd::Reboot).await {
                     error!("could not reboot: {}", e);
