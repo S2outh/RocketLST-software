@@ -155,23 +155,26 @@ async fn cc_mode(mut pin: ExtiInput<'static, Async>, mut led: Output<'static>) {
 fn get_rcc_config() -> rcc::Config {
     let mut rcc_config = rcc::Config::default();
     rcc_config.hsi = Some(rcc::HSIPrescaler::DIV1); // 64 MHz
+
     rcc_config.pll1 = Some(rcc::Pll {
         source: rcc::PllSource::HSI,
         prediv: rcc::PllPreDiv::DIV8,  // 8 MHz
         mul: rcc::PllMul::MUL40,       // 320 MHz
         divp: Some(rcc::PllDiv::DIV2), // 160 MHz
-        divq: Some(rcc::PllDiv::DIV2), // 160 MHz
-        divr: Some(rcc::PllDiv::DIV5), // 64 MHz
+        divq: Some(rcc::PllDiv::DIV8), // 40 MHz
+        divr: Some(rcc::PllDiv::DIV8), // 40 MHz
     });
+
     rcc_config.sys = rcc::Sysclk::PLL1_P; // cpu runns with 160 MHz
-    rcc_config.mux.fdcansel = rcc::mux::Fdcansel::PLL1_Q; // can runns with 160 MHz
+    rcc_config.mux.fdcansel = rcc::mux::Fdcansel::PLL1_Q; // can runns with 40 MHz
     rcc_config.voltage_scale = rcc::VoltageScale::Scale3; // voltage scale for max 170 MHz Pll out
 
-    rcc_config.ahb_pre = rcc::AHBPrescaler::DIV2;  // AHB runns at 80 MHz
-    rcc_config.apb1_pre = rcc::APBPrescaler::DIV2; // APB 1-4 all run with 80 MHz
+    rcc_config.ahb_pre = rcc::AHBPrescaler::DIV2;  // AHB runns at 80 MHz (src: sysclk)
+    rcc_config.apb1_pre = rcc::APBPrescaler::DIV2; // APB 1-4 all run with 40 MHz (src: ahb)
     rcc_config.apb2_pre = rcc::APBPrescaler::DIV2;
     rcc_config.apb3_pre = rcc::APBPrescaler::DIV2;
     rcc_config.apb4_pre = rcc::APBPrescaler::DIV2;
+
     rcc_config
 }
 
@@ -262,7 +265,7 @@ async fn main(spawner: Spawner) {
     ]);
 
     #[cfg(feature = "secondary")]
-    let receivable_beacons = BL.init([secondary_lst_beacon]);
+    let receivable_beacons = BL.init([&SEC_BCN]);
 
     // can 1 configuration
     let mut can_configurator =

@@ -130,15 +130,16 @@ fn get_rcc_config() -> rcc::Config {
         prediv: rcc::PllPreDiv::DIV8,  // 8 MHz
         mul: rcc::PllMul::MUL40,       // 320 MHz
         divp: Some(rcc::PllDiv::DIV2), // 160 MHz
-        divq: Some(rcc::PllDiv::DIV2), // 160 MHz
-        divr: Some(rcc::PllDiv::DIV5), // 64 MHz
+        divq: Some(rcc::PllDiv::DIV8), // 40 MHz
+        divr: Some(rcc::PllDiv::DIV8), // 40 MHz
     });
+
     rcc_config.sys = rcc::Sysclk::PLL1_P; // cpu runns with 160 MHz
-    rcc_config.mux.fdcansel = rcc::mux::Fdcansel::PLL1_Q; // can runns with 160 MHz
+    rcc_config.mux.fdcansel = rcc::mux::Fdcansel::PLL1_Q; // can runns with 40 MHz
     rcc_config.voltage_scale = rcc::VoltageScale::Scale3; // voltage scale for max 170 MHz Pll out
 
-    rcc_config.ahb_pre = rcc::AHBPrescaler::DIV2;  // AHB runns at 80 MHz
-    rcc_config.apb1_pre = rcc::APBPrescaler::DIV2; // APB 1-4 all run with 80 MHz due to hardware limits
+    rcc_config.ahb_pre = rcc::AHBPrescaler::DIV2;  // AHB runns at 80 MHz (src: sysclk)
+    rcc_config.apb1_pre = rcc::APBPrescaler::DIV2; // APB 1-4 all run with 40 MHz (src: ahb)
     rcc_config.apb2_pre = rcc::APBPrescaler::DIV2;
     rcc_config.apb3_pre = rcc::APBPrescaler::DIV2;
     rcc_config.apb4_pre = rcc::APBPrescaler::DIV2;
@@ -453,7 +454,7 @@ async fn main(spawner: Spawner) {
                     }
                     #[cfg(feature = "secondary")]
                     {
-                        parse_beacon!(data, secondary_lst_beacon, crc_func, channel);
+                        parse_beacon!(data, secondary_lst_beacon, crc_func, client);
                     }
                 }
                 LSTMessage::Telem(tm) => {
