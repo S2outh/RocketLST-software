@@ -888,7 +888,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 [[package]]
 name = "openlst-driver"
 version = "1.0.0"
-source = "git+https://github.com/S2outh/RocketLST-software.git?branch=dev#fbfc6b8b7d808da5aa19f08e6de81ab8ec9b2f09"
+source = "git+https://github.com/S2outh/RocketLST-software.git?branch=dev#4d71fa860ce9a1e2e5dab7ad64bb7462f587d3ef"
 dependencies = [
  "defmt 1.1.1",
  "embedded-io-async 0.7.0",
@@ -1183,7 +1183,7 @@ dependencies = [
 [[package]]
 name = "south-common"
 version = "4.0.0"
-source = "git+https://github.com/S2outh/south-common.git#449152f5cb050e7fee3bae4e027a8931eea0e741"
+source = "git+https://github.com/S2outh/south-common.git#f9ce9f15ccaada6a9089cd03e3355ddee56ad36f"
 dependencies = [
  "bitflags 2.13.1",
  "chell",
